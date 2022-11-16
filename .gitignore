@@ -1,0 +1,4 @@
+# gitignore for build-related files
+.idea/
+*.iml
+latc_llvm
