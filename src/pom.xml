@@ -170,31 +170,6 @@
         </configuration>
       </plugin>
 
-      <plugin>
-        <groupId>org.antlr</groupId>
-        <artifactId>antlr4-maven-plugin</artifactId>
-        <version>4.11.1</version>
-        <configuration>
-          <listener>false</listener>
-          <visitor>true</visitor>
-          <arguments>
-            <argument>-package</argument>
-            <argument>latte</argument>
-          </arguments>
-          <sourceDirectory>${project.basedir}/src/main/antlr4</sourceDirectory>
-          <outputDirectory>${project.basedir}/src/main/java</outputDirectory>
-        </configuration>
-        <executions>
-          <execution>
-            <id>antlr-generate</id>
-            <phase>generate-sources</phase>
-            <goals>
-              <goal>antlr4</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
-
     </plugins>
   </build>
 </project>
