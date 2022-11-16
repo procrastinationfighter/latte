@@ -3,6 +3,7 @@ compile: generate-antlr latc_llvm
 
 generate-antlr: antlr-4.11.1-complete.jar antlr-dir
 	export CLASSPATH=$PWD/antlr-4.11.1-complete.jar:$CLASSPATH
+	export PATH=/home/students/inf/PUBLIC/MRJP/bin/:$PATH
 	cp Latte.cf antlr-dir/Latte.cf
 	cd antlr-dir && \
 		bnfc --java --antlr -m Latte.cf && \
