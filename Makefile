@@ -2,14 +2,15 @@ compile: generate-antlr latc_llvm
 	cd src && mvn compile assembly:single
 
 generate-antlr: antlr-4.11.1-complete.jar antlr-dir
-	export CLASSPATH=$PWD/antlr-4.11.1-complete.jar:$CLASSPATH
-	export PATH=/home/students/inf/PUBLIC/MRJP/bin/:$PATH
+	export CLASSPATH=$$PWD/antlr-4.11.1-complete.jar:$$CLASSPATH
+	export PATH=/home/students/inf/PUBLIC/MRJP/bin:$$PATH
 	cp Latte.cf antlr-dir/Latte.cf
 	cd antlr-dir && \
 		bnfc --java --antlr -m Latte.cf && \
 		make absyn latte/latteLexer.java latte/latteParser.java&& \
 		cd latte && \
 		rm -f *.g4 *.class Absyn/*.class *.tokens *.interp
+	mkdir -p src/src/main/java
 	cp -r antlr-dir/latte src/src/main/java
 
 antlr-dir:
