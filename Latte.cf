@@ -6,11 +6,21 @@ Prog.   Program ::= [TopDef] ;
 
 FnDef.	   TopDef ::= Type Ident "(" [Arg] ")" Block ;
 
+TopClassDef.  TopDef ::= "class" Ident "{" [ClassDef] "}" ;
+
+SubClassDef.  TopDef ::= "class" Ident "extends" Ident "{"  "}" ;
+
 separator nonempty TopDef "" ;
 
 Ar. 	   Arg ::= Type Ident;
 
 separator  Arg "," ;
+
+ClassVarDef.  ClassDef ::= Type Ident ;
+
+ClassFnDef.   ClassDef ::= TopDef ;
+
+separator ClassDef "" ;
 
 -- statements ----------------------------------------------
 
@@ -75,6 +85,12 @@ ELitFalse. Expr6 ::= "false" ;
 EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
 
 EString.   Expr6 ::= String ;
+
+EArray.    Expr6 ::= Ident "[" Expr "]" ;
+
+EClassVar. Expr6 ::= Ident "." Ident ;
+
+EClassApp. Expr6 ::= Ident "." Ident "(" [Expr] ")" ;
 
 Neg.       Expr5 ::= "-" Expr6 ;
 
