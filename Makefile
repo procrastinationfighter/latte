@@ -9,12 +9,11 @@ generate-antlr: antlr-4.11.1-complete.jar antlr-dir
 	cp Latte.cf antlr-dir/Latte.cf && \
 	cd antlr-dir && \
 		bnfc --java --antlr -m Latte.cf && \
+		sed -i 's/PARSER_FLAGS=.*/& -visitor -no-listener/g' Makefile && \
 		make absyn latte/latteLexer.java latte/latteParser.java && \
-		cd latte && \
-		rm -f *.g4 *.class Absyn/*.class *.tokens *.interp
-	mkdir -p src/src/main/java && \
-	cp -r antlr-dir/latte src/src/main/java && \
-	export CLASSPATH=$$OLDCLASSPATH
+		cd latte
+	mkdir -p src/src/main/java
+	cp -r antlr-dir/latte src/src/main/java
 
 antlr-dir:
 	mkdir antlr-dir
