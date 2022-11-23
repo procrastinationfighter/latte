@@ -21,15 +21,23 @@ class TypecheckingVisitor : AllVisitor<InnerType, Int> {
         TODO("Not yet implemented")
     }
 
+    override fun visit(p: EChainArray?, arg: Int?): InnerType {
+        TODO("Not yet implemented")
+    }
+
+    override fun visit(p: EVar?, arg: Int?): InnerType {
+        TODO("Not yet implemented")
+    }
+
+    override fun visit(p: EApp?, arg: Int?): InnerType {
+        TODO("Not yet implemented")
+    }
+
     override fun visit(p: ClassVarDef?, arg: Int?): InnerType {
         TODO("Not yet implemented")
     }
 
     override fun visit(p: ClassFnDef?, arg: Int?): InnerType {
-        TODO("Not yet implemented")
-    }
-
-    override fun visit(p: EVar?, arg: Int?): InnerType {
         TODO("Not yet implemented")
     }
 
@@ -45,15 +53,7 @@ class TypecheckingVisitor : AllVisitor<InnerType, Int> {
         TODO("Not yet implemented")
     }
 
-    override fun visit(p: EApp?, arg: Int?): InnerType {
-        TODO("Not yet implemented")
-    }
-
     override fun visit(p: EString?, arg: Int?): InnerType {
-        TODO("Not yet implemented")
-    }
-
-    override fun visit(p: EArray?, arg: Int?): InnerType {
         TODO("Not yet implemented")
     }
 
@@ -62,6 +62,10 @@ class TypecheckingVisitor : AllVisitor<InnerType, Int> {
     }
 
     override fun visit(p: EClassApp?, arg: Int?): InnerType {
+        TODO("Not yet implemented")
+    }
+
+    override fun visit(p: EChain?, arg: Int?): InnerType {
         TODO("Not yet implemented")
     }
 
@@ -220,4 +224,9 @@ class TypecheckingVisitor : AllVisitor<InnerType, Int> {
     override fun visit(p: Fun?, arg: Int?): InnerType {
         TODO("Not yet implemented")
     }
+
+    override fun visit(p: EChainNormal?, arg: Int?): InnerType {
+        TODO("Not yet implemented")
+    }
+
 }

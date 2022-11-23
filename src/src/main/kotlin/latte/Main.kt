@@ -18,5 +18,4 @@ fun main(args: Array<String>) {
 
     val lexer = latteLexer(CharStreams.fromStream(input))
     val parser = latteParser(CommonTokenStream(lexer))
-    
 }
