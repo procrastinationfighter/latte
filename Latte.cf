@@ -18,7 +18,7 @@ separator  Arg "," ;
 
 ClassVarDef.  ClassDef ::= Type Ident ;
 
-ClassFnDef.   ClassDef ::= TopDef ;
+ClassTopDef.   ClassDef ::= TopDef ;
 
 separator ClassDef "" ;
 
@@ -67,6 +67,10 @@ Str.       Type ::= "string" ;
 Bool.      Type ::= "boolean" ;
 
 Void.      Type ::= "void" ;
+
+Class.     Type ::= Ident ;
+
+Array. Type ::= Type "[]" ;
 
 internal   Fun. Type ::= Type "(" [Type] ")" ;
 
