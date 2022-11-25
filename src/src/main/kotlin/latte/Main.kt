@@ -1,15 +1,16 @@
 package latte
 
+import latte.topdeffetcher.TopDefFetchingVisitor
 import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
 import java.io.File
 
 fun main(args: Array<String>) {
-    if (args.size < 2) {
+    if (args.isEmpty()) {
         System.err.println("No input file provided")
         return
-    } else if (!args[0].endsWith(".ins")) {
-        System.err.println("Input file must have .ins extension")
+    } else if (!args[0].endsWith(".lat")) {
+        System.err.println("Input file must have .lat extension")
         return
     }
 
@@ -18,4 +19,16 @@ fun main(args: Array<String>) {
 
     val lexer = latteLexer(CharStreams.fromStream(input))
     val parser = latteParser(CommonTokenStream(lexer))
+
+    val tree = parser.start_Program()
+
+    val definitions = tree.accept(TopDefFetchingVisitor())
+
+    if (definitions != null) {
+        System.out.println("good")
+        System.out.println(definitions.classes.toString())
+        System.out.println(definitions.functions.toString())
+    } else {
+        System.out.println("bad")
+    }
 }

@@ -1,53 +1,80 @@
 package latte.topdeffetcher
 
+import latte.Absyn.FnDef
+import latte.Absyn.SubClassDef
+import latte.Absyn.TopClassDef
 import latte.common.*
 import latte.latteParser
 import latte.latteParserBaseVisitor
+import java.util.*
 
 class TopDefFetchingVisitor : latteParserBaseVisitor<LatteDefinitions>() {
 
-    fun printErr(message: String, line: Int, column: Int) {
+    private var definitions: LatteDefinitions = LatteDefinitions()
+
+    private fun printErr(message: String, line: Int, column: Int) {
         System.err.println("DEFINITION ERROR ($line,$column): $message")
     }
 
-    override fun visitStart_Program(ctx: latteParser.Start_ProgramContext?): LatteDefinitions {
-        if (ctx != null) {
-            return visitProgram(ctx.program())
+    override fun visitStart_Program(ctx: latteParser.Start_ProgramContext?): LatteDefinitions? {
+        return if (ctx != null) {
+            try {
+                visitProgram(ctx.program())
+                definitions
+            } catch (e: LatteException) {
+                printErr(e.message!!, e.line, e.column)
+                null
+            }
         } else {
             printErr("the program is empty", 0, 0)
-            throw LatteException("the program is empty");
+            null
         }
     }
 
     override fun visitProgram(ctx: latteParser.ProgramContext?): LatteDefinitions {
-        return super.visitProgram(ctx)
+        if (ctx == null) {
+            throw LatteException("program is null", 0, 0)
+        }
+
+        visitListTopDef(ctx.listTopDef())
+
+        // Check if a main function has been defined.
+        val main = this.definitions.functions["main"] ?: throw LatteException("main function has not been defined", 0, 0)
+
+        return this.definitions
     }
 
     override fun visitTopDef(ctx: latteParser.TopDefContext?): LatteDefinitions {
-        return super.visitTopDef(ctx)
+        val topDef = ctx?.result ?: throw LatteException("top def is null", 0, 0)
+
+        if (topDef is FnDef) {
+            val prev = this.definitions.functions.put(topDef.ident_, FuncDef(topDef.type_, topDef.listarg_))
+            if (prev != null) {
+                throw LatteException("redefinition of function ${topDef.ident_}", ctx.start!!.line, ctx.start!!.charPositionInLine)
+            }
+        } else if (topDef is TopClassDef) {
+            val prev = this.definitions.classes.put(topDef.ident_, ClassDef(Optional.empty(), ctx.listClassDef()))
+            if (prev != null) {
+                throw LatteException("redefinition of class ${topDef.ident_}", ctx.start!!.line, ctx.start!!.charPositionInLine)
+            }
+        } else if (topDef is SubClassDef) {
+            val prev = this.definitions.classes.put(topDef.ident_1, ClassDef(Optional.of(topDef.ident_2), ctx.listClassDef()))
+            if (prev != null) {
+                throw LatteException("redefinition of class ${topDef.ident_1}", ctx.start!!.line, ctx.start!!.charPositionInLine)
+            }
+        } else {
+            throw LatteException("unknown definition type", ctx.start!!.line, ctx.start!!.charPositionInLine)
+        }
+
+        return this.definitions
     }
 
     override fun visitListTopDef(ctx: latteParser.ListTopDefContext?): LatteDefinitions {
-        return super.visitListTopDef(ctx)
-    }
+        if (ctx == null) {
+            return this.definitions
+        }
 
-    override fun visitArg(ctx: latteParser.ArgContext?): LatteDefinitions {
-        return super.visitArg(ctx)
-    }
-
-    override fun visitListArg(ctx: latteParser.ListArgContext?): LatteDefinitions {
-        return super.visitListArg(ctx)
-    }
-
-    override fun visitClassDef(ctx: latteParser.ClassDefContext?): LatteDefinitions {
-        return super.visitClassDef(ctx)
-    }
-
-    override fun visitListClassDef(ctx: latteParser.ListClassDefContext?): LatteDefinitions {
-        return super.visitListClassDef(ctx)
-    }
-
-    override fun visitType(ctx: latteParser.TypeContext?): LatteDefinitions {
-        return super.visitType(ctx)
+        visitTopDef(ctx.topDef())
+        return visitListTopDef(ctx.listTopDef())
     }
 }
