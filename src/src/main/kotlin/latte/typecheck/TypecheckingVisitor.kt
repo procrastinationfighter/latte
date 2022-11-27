@@ -1,8 +1,6 @@
 package latte.typecheck
 
 import latte.Absyn.*
-import latte.Absyn.Array
-import latte.AllVisitor
 import latte.common.FuncDef
 import latte.common.LatteDefinitions
 import latte.common.LatteException
@@ -12,8 +10,6 @@ import latte.latteParser.ListArgContext
 import latte.latteParser.TypeContext
 import latte.latteParserBaseVisitor
 import org.antlr.v4.runtime.Token
-import java.lang.Void
-import java.util.*
 import kotlin.collections.ArrayList
 
 class TypecheckingVisitor(private val definitions: LatteDefinitions) : latteParserBaseVisitor<Type>() {
@@ -66,12 +62,14 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     }
 
     private fun visitFun(returnType: TypeContext, args: ListArgContext, block: BlockContext) {
+        currVariables.add(HashMap())
         visitListArg(args)
         typeExists(returnType)
         currReturnType = returnType.result
 
         visitBlock(block)
 
+        currVariables.removeAt(currVariables.size - 1)
         currReturnType = null
     }
 
@@ -129,27 +127,60 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     }
 
     override fun visitArg(ctx: latteParser.ArgContext?): Type {
-        return super.visitArg(ctx)
+        typeExists(ctx!!.type())
+        val prev = currVariables[currVariables.size - 1].put(ctx.text, ctx.type().result)
+        if (prev != null) {
+            throw LatteException("argument with name ${ctx.text} already exists", ctx.start.line, ctx.start.charPositionInLine)
+        }
+
+        return ctx.type().result
     }
 
     override fun visitListArg(ctx: latteParser.ListArgContext?): Type {
-        return super.visitListArg(ctx)
+        if (ctx != null) {
+            visitArg(ctx.arg())
+            visitListArg(ctx.listArg())
+        }
+
+        return Void()
     }
 
     override fun visitClassDef(ctx: latteParser.ClassDefContext?): Type {
-        return super.visitClassDef(ctx)
+        return if (ctx!!.result is ClassVarDef) {
+            val prev = currVariables[currVariables.size - 1].put(ctx.p_1_2.text, ctx.type().result)
+            if (prev != null) {
+                throw LatteException("member variable with name ${ctx.p_1_2.text} already exists", ctx.start.line, ctx.start.charPositionInLine)
+            }
+            Void()
+        } else { // topdef
+            visitTopDef(ctx.topDef())
+            Void()
+        }
     }
 
     override fun visitListClassDef(ctx: latteParser.ListClassDefContext?): Type {
-        return super.visitListClassDef(ctx)
+        if (ctx != null) {
+            visitClassDef(ctx.classDef())
+            visitListClassDef(ctx.listClassDef())
+        }
+
+        return Void()
     }
 
     override fun visitBlock(ctx: latteParser.BlockContext?): Type {
-        return super.visitBlock(ctx)
+        currVariables.add(HashMap())
+        visitListStmt(ctx!!.listStmt())
+
+        return Void()
     }
 
     override fun visitListStmt(ctx: latteParser.ListStmtContext?): Type {
-        return super.visitListStmt(ctx)
+        if (ctx != null) {
+            visitStmt(ctx.stmt())
+            visitListStmt(ctx.listStmt())
+        }
+
+        return Void()
     }
 
     override fun visitStmt(ctx: latteParser.StmtContext?): Type {
@@ -165,7 +196,8 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     }
 
     override fun visitType(ctx: latteParser.TypeContext?): Type {
-        return super.visitType(ctx)
+        typeExists(ctx!!)
+        return ctx.result
     }
 
     override fun visitListType(ctx: latteParser.ListTypeContext?): Type {
