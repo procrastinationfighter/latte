@@ -8,7 +8,7 @@ FnDef.	   TopDef ::= Type Ident "(" [Arg] ")" Block ;
 
 TopClassDef.  TopDef ::= "class" Ident "{" [ClassDef] "}" ;
 
-SubClassDef.  TopDef ::= "class" Ident "extends" Ident "{"  "}" ;
+SubClassDef.  TopDef ::= "class" Ident "extends" Ident "{" [ClassDef] "}" ;
 
 separator nonempty TopDef "" ;
 

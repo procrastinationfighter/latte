@@ -1,6 +1,8 @@
 package latte
 
+import latte.common.LatteException
 import latte.topdeffetcher.TopDefFetchingVisitor
+import latte.typecheck.TypecheckingVisitor
 import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
 import java.io.File
@@ -24,11 +26,14 @@ fun main(args: Array<String>) {
 
     val definitions = tree.accept(TopDefFetchingVisitor())
 
-    if (definitions != null) {
-        System.out.println("good")
-        System.out.println(definitions.classes.toString())
-        System.out.println(definitions.functions.toString())
-    } else {
-        System.out.println("bad")
+    if (definitions == null) {
+        System.err.println("bad")
+    }
+
+    try {
+        tree.accept(TypecheckingVisitor(definitions))
+    } catch (e: LatteException) {
+        System.err.println("bad")
+        System.err.println(e.message)
     }
 }
