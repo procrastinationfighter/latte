@@ -72,6 +72,8 @@ Void.      Type ::= "void" ;
 
 Class.     Type ::= Ident ;
 
+internal    Null.      Type ::= "null" ;
+
 Array. Type ::= Type "[]" ;
 
 internal   Fun. Type ::= Type "(" [Type] ")" ;
@@ -91,10 +93,6 @@ ELitTrue.  Expr6 ::= "true" ;
 ELitFalse. Expr6 ::= "false" ;
 
 EString.   Expr6 ::= String ;
-
-EClassVar. Expr6 ::= Ident "." Ident ;
-
-EClassApp. Expr6 ::= Ident "." Ident "(" [Expr] ")" ;
 
 EChain.    Expr6 ::= [ChainExpr] ;
 
