@@ -13,6 +13,7 @@ import org.antlr.v4.runtime.Token
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
+import kotlin.system.exitProcess
 
 class TypecheckingVisitor(private val definitions: LatteDefinitions) : latteParserBaseVisitor<Type>() {
 
@@ -22,15 +23,62 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     // Local for functions
     private var currReturnType: Type? = null
 
+    private fun getVariableType(name: Token): Type {
+        for (map in currVariables.reversed()) {
+            val type = map[name.text]
+            if (type != null) {
+                return type
+            }
+        }
+
+        throw LatteException("variable ${name.text} not declared in this scope", name.line, name.charPositionInLine)
+    }
+
+    private fun addNewVariableScope() {
+        currVariables.add(HashMap())
+    }
+
+    private fun removeLastVarScope() {
+        currVariables.removeAt(currVariables.size - 1)
+    }
+
+    private fun addNewVariable(name: Token, type: Type) {
+        val prev = currVariables[currVariables.size - 1].put(name.text, type)
+
+        if (prev != null) {
+            throw LatteException("variable $name is already declared in this scope", name.line, name.charPositionInLine)
+        }
+    }
+
+    private fun getFunctionType(name: Token): FuncDef {
+        for (map in currFunctions.reversed()) {
+            val type = map[name.text]
+            if (type != null) {
+                return type
+            }
+        }
+
+        throw LatteException("function ${name.text} not declared in this scope", name.line, name.charPositionInLine)
+    }
+
+    private fun unexpectedErrorExit(cond: Boolean, component: String) {
+        if (cond) {
+            System.err.println("unexpected error, something is null in $component")
+        }
+    }
+
     private fun typeExists(t: TypeContext): Boolean {
         val type = t.result
         if (type is latte.Absyn.Class && !definitions.classes.contains(type.ident_)) {
             throw LatteException("type ${type.ident_} has not been defined", t.start.line, t.start.charPositionInLine)
+        } else if (type is latte.Absyn.Array) {
+            return typeExists(t.type())
         }
 
         return true
     }
 
+    // Checks if r is of type l
     private fun compareTypes(l: Type, r: Type): Boolean {
         when (l) {
             is latte.Absyn.Int -> return r is latte.Absyn.Int
@@ -200,7 +248,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
                 is latte.Absyn.Incr -> visitIncr(ctx.IDENT(0).symbol)
                 is latte.Absyn.Ret -> visitRet(ctx.expr())
                 is latte.Absyn.SExp -> visitExpr(ctx.expr())
-                is latte.Absyn.VRet -> visitVRet()
+                is latte.Absyn.VRet -> visitVRet(ctx.start)
                 is latte.Absyn.While -> visitWhile(ctx.expr(), ctx.stmt(0))
                 is latte.Absyn.For -> visitFor(ctx.type(), ctx.IDENT(0).symbol, ctx.IDENT(1).symbol, ctx.stmt(0))
             }
@@ -209,70 +257,162 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         return Void();
     }
 
+    private fun checkIfStmtNotDecl(stmt: latteParser.StmtContext, objectType: String) {
+        if (stmt.result is latte.Absyn.Decl) {
+            throw LatteException("a body of $objectType can't consist of a single declaration instruction", stmt.start.line, stmt.start.charPositionInLine)
+        }
+    }
+
     private fun visitFor(
         type: TypeContext?,
-        symbol: Token?,
-        symbol1: Token?,
+        variable: Token?,
+        collection: Token?,
         stmt: latteParser.StmtContext?
     ) {
-        TODO("Not yet implemented")
+        unexpectedErrorExit(type == null || variable == null || collection == null || stmt == null, "for loop");
+        val arrayType = getVariableType(collection!!)
+        if (arrayType !is latte.Absyn.Array) {
+            throw LatteException("for loop can be iterated only over arrays", collection.line, collection.charPositionInLine)
+        }
+        typeExists(type!!)
+        if (!compareTypes(type.result, arrayType.type_)) {
+            throw LatteException("variable type in for loop does not match the array type", type.start.line, type.start.charPositionInLine)
+        }
+        checkIfStmtNotDecl(stmt!!, "for loop")
+
+        addNewVariableScope()
+        addNewVariable(variable!!, type.result)
+
+        visitStmt(stmt)
+
+        removeLastVarScope()
     }
 
-    private fun visitWhile(expr: latteParser.ExprContext?, stmt: latteParser.StmtContext) {
-        TODO("Not yet implemented")
+    private fun visitWhile(expr: latteParser.ExprContext?, stmt: latteParser.StmtContext?) {
+        unexpectedErrorExit(expr == null || stmt == null, "while loop");
+
+        val type = visitExpr(expr)
+        if (!compareTypes(latte.Absyn.Bool(), type)) {
+            throw LatteException("the condition of while loop must be of bool type", expr!!.start.line, expr.start.charPositionInLine)
+        }
+
+        checkIfStmtNotDecl(stmt!!, "while loop")
+        visitStmt(stmt)
     }
 
-    private fun visitVRet() {
-        TODO("Not yet implemented")
+    private fun visitVRet(t: Token) {
+        unexpectedErrorExit(currReturnType == null, "void return")
+
+        if (!compareTypes(currReturnType!!, latte.Absyn.Void())) {
+            throw LatteException("an empty return statement in a non-void function", t.line, t.charPositionInLine)
+        }
     }
 
     private fun visitRet(expr: latteParser.ExprContext?) {
-        TODO("Not yet implemented")
+        unexpectedErrorExit(currReturnType == null || expr == null, "return")
+
+        val exprType = visitExpr(expr!!)
+        if (!compareTypes(currReturnType!!, exprType)) {
+            throw LatteException(
+                "wrong return type, expected=$currReturnType, actual=$exprType",
+                expr.start.line,
+                expr.start.charPositionInLine
+            )
+        }
     }
 
     private fun visitIncr(symbol: Token?) {
-        TODO("Not yet implemented")
+        unexpectedErrorExit(symbol == null, "incr")
+        val type = getVariableType(symbol!!)
+        if (!compareTypes(latte.Absyn.Int(), type)) {
+            throw LatteException("variable $symbol is not of type int", symbol.line, symbol.charPositionInLine)
+        }
     }
 
     private fun visitDecr(symbol: Token?) {
-        TODO("Not yet implemented")
+        unexpectedErrorExit(symbol == null, "decr")
+        val type = getVariableType(symbol!!)
+        if (!compareTypes(latte.Absyn.Int(), type)) {
+            throw LatteException("variable $symbol is not of type int", symbol.line, symbol.charPositionInLine)
+        }
     }
 
     private fun visitDecl(type: latteParser.TypeContext?, listItem: latteParser.ListItemContext?) {
-        TODO("Not yet implemented")
+        unexpectedErrorExit(type == null || listItem == null, "decl")
+        typeExists(type!!)
+
+        visitListItem(type, listItem)
     }
 
-    private fun visitCondElse(expr: latteParser.ExprContext?, stmt: latteParser.StmtContext?, stmt1: latteParser.StmtContext?) {
-        TODO("Not yet implemented")
+    private fun visitCondElse(expr: latteParser.ExprContext?, stmt1: latteParser.StmtContext?, stmt2: latteParser.StmtContext?) {
+        unexpectedErrorExit(expr == null || stmt1 == null || stmt2 == null, "if-else")
+
+        val type = visitExpr(expr)
+        if (!compareTypes(latte.Absyn.Bool(), type)) {
+            throw LatteException("the condition of if-else must be of bool type", expr!!.start.line, expr.start.charPositionInLine)
+        }
+
+        checkIfStmtNotDecl(stmt1!!, "if-else")
+        visitStmt(stmt1)
+        checkIfStmtNotDecl(stmt2!!, "if-else")
+        visitStmt(stmt2)
     }
 
     private fun visitCond(expr: latteParser.ExprContext?, stmt: latteParser.StmtContext?) {
-        TODO("Not yet implemented")
+        unexpectedErrorExit(expr == null || stmt == null, "if")
+
+        val type = visitExpr(expr)
+        if (!compareTypes(latte.Absyn.Bool(), type)) {
+            throw LatteException("the condition of if must be of bool type", expr!!.start.line, expr.start.charPositionInLine)
+        }
+
+        checkIfStmtNotDecl(stmt!!, "if")
+        visitStmt(stmt)
     }
 
     private fun visitBStmt(block: BlockContext?) {
-        TODO("Not yet implemented")
+        unexpectedErrorExit(block == null, "block")
+
+        addNewVariableScope()
+        visitListStmt(block!!.listStmt())
+        removeLastVarScope()
     }
 
-    private fun visitAss(ident: Token, expr: latteParser.ExprContext?) {
-        TODO("Not yet implemented")
+    private fun visitAss(ident: Token?, expr: latteParser.ExprContext?) {
+        unexpectedErrorExit(ident == null || expr == null, "ass")
+
+        val varType = getVariableType(ident!!)
+        val exprType = visitExpr(expr!!)
+
+        if (!compareTypes(varType, exprType)) {
+            throw LatteException(
+                "expression is not of required type, expected=$varType, actual=$exprType",
+                expr.start.line,
+                expr.start.charPositionInLine
+            )
+        }
     }
 
-    override fun visitItem(ctx: latteParser.ItemContext?): Type {
-        return super.visitItem(ctx)
+    private fun visitItem(type: latteParser.TypeContext?, ctx: latteParser.ItemContext?) {
+        unexpectedErrorExit(type == null || ctx == null, "item")
+
+        addNewVariable(ctx!!.IDENT().symbol, type!!.result)
+        val exprType = visitExpr(ctx.expr())
+
+        if (!compareTypes(type.result, exprType)) {
+            throw LatteException(
+                "expression is not of required type, expected=$type, actual=$exprType",
+                ctx.expr().start.line,
+                ctx.expr().start.charPositionInLine,
+            )
+        }
     }
 
-    override fun visitListItem(ctx: latteParser.ListItemContext?): Type {
-        return super.visitListItem(ctx)
-    }
-
-    override fun visitType(ctx: latteParser.TypeContext?): Type {
-        typeExists(ctx!!)
-        return ctx.result
-    }
-
-    override fun visitListType(ctx: latteParser.ListTypeContext?): Type {
-        return super.visitListType(ctx)
+    private fun visitListItem(type: latteParser.TypeContext?, ctx: latteParser.ListItemContext?) {
+        if (ctx != null) {
+            visitItem(type, ctx.item())
+            visitListItem(type, ctx.listItem())
+        }
     }
 
     override fun visitExpr6(ctx: latteParser.Expr6Context?): Type {
