@@ -10,7 +10,9 @@ import latte.latteParser.ListArgContext
 import latte.latteParser.TypeContext
 import latte.latteParserBaseVisitor
 import org.antlr.v4.runtime.Token
+import java.util.*
 import kotlin.collections.ArrayList
+import kotlin.collections.HashMap
 
 class TypecheckingVisitor(private val definitions: LatteDefinitions) : latteParserBaseVisitor<Type>() {
 
@@ -38,6 +40,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             is latte.Absyn.Void -> return r is latte.Absyn.Void
             is latte.Absyn.Class -> {
                 return if (r is latte.Absyn.Class) {
+                    // TODO: Implement for inheritance and nulls
                     l.ident_ == r.ident_ && definitions.classes.contains(l.ident_)
                 } else {
                     false
@@ -184,7 +187,75 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     }
 
     override fun visitStmt(ctx: latteParser.StmtContext?): Type {
-        return super.visitStmt(ctx)
+        if (ctx != null) {
+
+            when (ctx.result) {
+                is latte.Absyn.Ass -> visitAss(ctx.IDENT(0).symbol, ctx.expr())
+                is latte.Absyn.BStmt -> visitBStmt(ctx.block())
+                is latte.Absyn.Cond -> visitCond(ctx.expr(), ctx.stmt(0))
+                is latte.Absyn.CondElse -> visitCondElse(ctx.expr(), ctx.stmt(0), ctx.stmt(1))
+                is latte.Absyn.Decl -> visitDecl(ctx.type(), ctx.listItem())
+                is latte.Absyn.Decr -> visitDecr(ctx.IDENT(0).symbol)
+                is latte.Absyn.Empty -> {}
+                is latte.Absyn.Incr -> visitIncr(ctx.IDENT(0).symbol)
+                is latte.Absyn.Ret -> visitRet(ctx.expr())
+                is latte.Absyn.SExp -> visitExpr(ctx.expr())
+                is latte.Absyn.VRet -> visitVRet()
+                is latte.Absyn.While -> visitWhile(ctx.expr(), ctx.stmt(0))
+                is latte.Absyn.For -> visitFor(ctx.type(), ctx.IDENT(0).symbol, ctx.IDENT(1).symbol, ctx.stmt(0))
+            }
+        }
+
+        return Void();
+    }
+
+    private fun visitFor(
+        type: TypeContext?,
+        symbol: Token?,
+        symbol1: Token?,
+        stmt: latteParser.StmtContext?
+    ) {
+        TODO("Not yet implemented")
+    }
+
+    private fun visitWhile(expr: latteParser.ExprContext?, stmt: latteParser.StmtContext) {
+        TODO("Not yet implemented")
+    }
+
+    private fun visitVRet() {
+        TODO("Not yet implemented")
+    }
+
+    private fun visitRet(expr: latteParser.ExprContext?) {
+        TODO("Not yet implemented")
+    }
+
+    private fun visitIncr(symbol: Token?) {
+        TODO("Not yet implemented")
+    }
+
+    private fun visitDecr(symbol: Token?) {
+        TODO("Not yet implemented")
+    }
+
+    private fun visitDecl(type: latteParser.TypeContext?, listItem: latteParser.ListItemContext?) {
+        TODO("Not yet implemented")
+    }
+
+    private fun visitCondElse(expr: latteParser.ExprContext?, stmt: latteParser.StmtContext?, stmt1: latteParser.StmtContext?) {
+        TODO("Not yet implemented")
+    }
+
+    private fun visitCond(expr: latteParser.ExprContext?, stmt: latteParser.StmtContext?) {
+        TODO("Not yet implemented")
+    }
+
+    private fun visitBStmt(block: BlockContext?) {
+        TODO("Not yet implemented")
+    }
+
+    private fun visitAss(ident: Token, expr: latteParser.ExprContext?) {
+        TODO("Not yet implemented")
     }
 
     override fun visitItem(ctx: latteParser.ItemContext?): Type {

@@ -58,6 +58,8 @@ While.     Stmt ::= "while" "(" Expr ")" Stmt ;
 
 SExp.      Stmt ::= Expr  ";" ;
 
+For.       Stmt ::= "for" "(" Type Ident ":" Ident ")" Stmt ;
+
 -- Types ---------------------------------------------------
 
 Int.       Type ::= "int" ;
@@ -77,6 +79,10 @@ internal   Fun. Type ::= Type "(" [Type] ")" ;
 separator  Type "," ;
 
 -- Expressions ---------------------------------------------
+
+ECast.     Expr6 ::= "(" Type ")" Expr ;
+
+ENull.     Expr6 ::= "null" ;
 
 ELitInt.   Expr6 ::= Integer ;
 
