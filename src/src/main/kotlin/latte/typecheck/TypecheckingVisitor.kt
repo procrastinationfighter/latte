@@ -10,9 +10,11 @@ import latte.latteParser.ListArgContext
 import latte.latteParser.TypeContext
 import latte.latteParserBaseVisitor
 import org.antlr.v4.runtime.Token
+import org.antlr.v4.runtime.tree.TerminalNode
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
+import kotlin.math.exp
 
 class TypecheckingVisitor(private val definitions: LatteDefinitions) : latteParserBaseVisitor<Type>() {
 
@@ -38,6 +40,42 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         }
 
         throw LatteException("variable ${name.text} not declared in this scope", name.line, name.charPositionInLine)
+    }
+
+    private fun getClassVariable(className: String, ident: Token?): Type {
+        var name = Optional.of(className)
+
+        while (name.isPresent) {
+            val currClass = definitions.classes[name.get()]
+            if (currClass == null) {
+                unexpectedErrorExit(true, "class tree var traversal")
+            }
+            name = currClass!!.parent
+            val varType = currClass.variables[ident!!.text]
+            if (varType != null) {
+                return varType
+            }
+        }
+
+        throw LatteException("variable ${ident!!.text} not found in class $className", ident.line, ident.charPositionInLine)
+    }
+
+    private fun getClassMethod(className: String, ident: Token?): FuncDef {
+        var name = Optional.of(className)
+
+        while (name.isPresent) {
+            val currClass = definitions.classes[name.get()]
+            if (currClass == null) {
+                unexpectedErrorExit(true, "class tree method traversal")
+            }
+            name = currClass!!.parent
+            val methodType = currClass.methods[ident!!.text]
+            if (methodType != null) {
+                return methodType
+            }
+        }
+
+        throw LatteException("method ${ident!!.text} not found in class $className", ident.line, ident.charPositionInLine)
     }
 
     private fun addNewVariableScope() {
@@ -426,7 +464,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
         return when (ctx!!.result) {
             is ECast -> visitCast(ctx.type(), ctx.expr())
-            is EChain -> visitChain(ctx.listChainExpr())
+            is EChain -> visitListChainExpr(ctx.listChainExpr())
             is ELitFalse -> latte.Absyn.Bool()
             is ELitTrue -> latte.Absyn.Bool()
             is ELitInt -> latte.Absyn.Int()
@@ -438,16 +476,47 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         }
     }
 
+    private fun visitCast(type: TypeContext?, expr: latteParser.ExprContext?): Type {
+        unexpectedErrorExit(type == null || expr == null, "cast")
+        val exprType = visitExpr(expr)
+
+        if (!compareTypes(type!!.result, exprType)) {
+            throw LatteException("expression is not of type ${type.result}", expr!!.start.line, expr.start.charPositionInLine)
+        }
+
+        return type.result
+    }
+
     private fun visitChainExpr(ctx: latteParser.ChainExprContext?, className: String): Type {
         unexpectedErrorExit(ctx == null, "chain expr")
 
         return when (ctx!!.result) {
             is EChainArray -> visitChainArray(ctx.chainVal(), ctx.expr(), className)
-            is EChainNormal -> visitChainNormal(ctx.chainVal(), className)
+            is EChainNormal -> visitChainVal(ctx.chainVal(), className)
             else -> {
                 TODO("Unexpected type of ChainExpr")
             }
         }
+    }
+
+    private fun visitChainArray(
+        chainVal: latteParser.ChainValContext?,
+        expr: latteParser.ExprContext?,
+        className: String
+    ): Type {
+        unexpectedErrorExit(chainVal == null || expr == null, "chain array")
+
+        val chainValType = visitChainVal(chainVal!!)
+        if (chainValType !is latte.Absyn.Array) {
+            throw LatteException("variable is not an array", chainVal.start.line, chainVal.start.charPositionInLine)
+        }
+
+        val exprType = visitExpr(expr!!)
+        if (!compareTypes(latte.Absyn.Int(), exprType)) {
+            throw LatteException("arrays can be indexed only by integers", expr.start.line, expr.start.charPositionInLine)
+        }
+
+        return chainValType.type_
     }
 
     private fun visitChainVal(ctx: latteParser.ChainValContext?, className: String): Type {
@@ -455,14 +524,77 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
         return when (ctx!!.result) {
             is EVar -> {
-                visitVar(ctx.IDENT(), className)
+                visitVar(ctx.IDENT().symbol, className)
             }
             is EApp -> {
-                visitApp(ctx.IDENT(), ctx.listExpr(), className)
+                visitApp(ctx.IDENT().symbol, ctx.listExpr(), className)
             }
             else -> {
                 TODO("Unexpected type of ChainVal")
             }
+        }
+    }
+
+    private fun visitApp(ident: Token?, listExpr: latteParser.ListExprContext?, className: String): Type {
+        unexpectedErrorExit(ident == null, "app")
+
+        val func: FuncDef = if (className == "") {
+            getFunctionType(ident!!)
+        } else {
+            getClassMethod(className, ident!!)
+        }
+
+        checkFunctionCall(listExpr, func, ident)
+
+        return func.returnType
+    }
+
+    private fun checkFunctionCall(listExpr: latteParser.ListExprContext?, func: FuncDef, ident: Token) {
+        if (listExpr == null && func.args.size == 0) {
+            return
+        }
+
+        var exprs = listExpr
+        var currArg = 0
+
+        while (exprs != null && currArg < func.args.size) {
+            val currExpr = exprs.expr()
+            val exprType = visitExpr(currExpr)
+            val arg = func.args[currArg] as latte.Absyn.Ar
+            if (!compareTypes(arg.type_, exprType)) {
+                throw LatteException(
+                    "argument ${arg.ident_} of function ${ident.text} received value of incorrect type, expected type=${arg.type_}, actual type:",
+                    currExpr.start.line,
+                    currExpr.start.charPositionInLine,
+                )
+            }
+
+            exprs = exprs.listExpr()
+            currArg++
+        }
+
+        if (exprs != null) {
+            throw LatteException(
+                "function ${ident.text} received too few arguments",
+                listExpr!!.start.line,
+                listExpr.start.charPositionInLine,
+            )
+        } else if (currArg < func.args.size) {
+            throw LatteException(
+                "function ${ident.text} received too many arguments",
+                listExpr!!.start.line,
+                listExpr.start.charPositionInLine,
+            )
+        }
+    }
+
+    private fun visitVar(ident: Token?, className: String): Type {
+        unexpectedErrorExit(ident == null, "var")
+
+        return if (className == "") {
+            getVariableType(ident!!)
+        } else {
+            getClassVariable(className, ident)
         }
     }
 
