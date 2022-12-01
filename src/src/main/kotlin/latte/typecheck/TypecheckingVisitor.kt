@@ -1,6 +1,7 @@
 package latte.typecheck
 
 import latte.Absyn.*
+import latte.Absyn.Int
 import latte.common.FuncDef
 import latte.common.LatteDefinitions
 import latte.common.LatteException
@@ -10,11 +11,9 @@ import latte.latteParser.ListArgContext
 import latte.latteParser.TypeContext
 import latte.latteParserBaseVisitor
 import org.antlr.v4.runtime.Token
-import org.antlr.v4.runtime.tree.TerminalNode
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
-import kotlin.math.exp
 
 class TypecheckingVisitor(private val definitions: LatteDefinitions) : latteParserBaseVisitor<Type>() {
 
@@ -26,7 +25,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
     private fun getClassName(type: Type): String {
         return when(type) {
-            is latte.Absyn.Class -> type.ident_
+            is Class -> type.ident_
             else -> ""
         }
     }
@@ -113,7 +112,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
     private fun typeExists(t: TypeContext): Boolean {
         val type = t.result
-        if (type is latte.Absyn.Class && !definitions.classes.contains(type.ident_)) {
+        if (type is Class && !definitions.classes.contains(type.ident_)) {
             throw LatteException("type ${type.ident_} has not been defined", t.start.line, t.start.charPositionInLine)
         } else if (type is latte.Absyn.Array) {
             return typeExists(t.type())
@@ -125,13 +124,13 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     // Checks if r is of type l
     private fun compareTypes(l: Type, r: Type): Boolean {
         when (l) {
-            is latte.Absyn.Int -> return r is latte.Absyn.Int
-            is latte.Absyn.Bool -> return r is latte.Absyn.Bool
-            is latte.Absyn.Str -> return r is latte.Absyn.Str
+            is Int -> return r is Int
+            is Bool -> return r is Bool
+            is Str -> return r is Str
             is latte.Absyn.Array -> return r is latte.Absyn.Array && compareTypes(l.type_, r.type_)
-            is latte.Absyn.Void -> return r is latte.Absyn.Void
-            is latte.Absyn.Class -> {
-                return if (r is latte.Absyn.Class) {
+            is Void -> return r is Void
+            is Class -> {
+                return if (r is Class) {
                     // TODO: Implement for inheritance and nulls
                     l.ident_ == r.ident_ && definitions.classes.contains(l.ident_)
                 } else {
@@ -231,7 +230,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         return ctx.type().result
     }
 
-    override fun visitListArg(ctx: latteParser.ListArgContext?): Type {
+    override fun visitListArg(ctx: ListArgContext?): Type {
         if (ctx != null) {
             visitArg(ctx.arg())
             visitListArg(ctx.listArg())
@@ -262,7 +261,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         return Void()
     }
 
-    override fun visitBlock(ctx: latteParser.BlockContext?): Type {
+    override fun visitBlock(ctx: BlockContext?): Type {
         currVariables.add(HashMap())
         visitListStmt(ctx!!.listStmt())
 
@@ -282,27 +281,27 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         if (ctx != null) {
 
             when (ctx.result) {
-                is latte.Absyn.Ass -> visitAss(ctx.IDENT(0).symbol, ctx.expr())
-                is latte.Absyn.BStmt -> visitBStmt(ctx.block())
-                is latte.Absyn.Cond -> visitCond(ctx.expr(), ctx.stmt(0))
-                is latte.Absyn.CondElse -> visitCondElse(ctx.expr(), ctx.stmt(0), ctx.stmt(1))
-                is latte.Absyn.Decl -> visitDecl(ctx.type(), ctx.listItem())
-                is latte.Absyn.Decr -> visitDecr(ctx.IDENT(0).symbol)
-                is latte.Absyn.Empty -> {}
-                is latte.Absyn.Incr -> visitIncr(ctx.IDENT(0).symbol)
-                is latte.Absyn.Ret -> visitRet(ctx.expr())
-                is latte.Absyn.SExp -> visitExpr(ctx.expr())
-                is latte.Absyn.VRet -> visitVRet(ctx.start)
-                is latte.Absyn.While -> visitWhile(ctx.expr(), ctx.stmt(0))
-                is latte.Absyn.For -> visitFor(ctx.type(), ctx.IDENT(0).symbol, ctx.IDENT(1).symbol, ctx.stmt(0))
+                is Ass -> visitAss(ctx.IDENT(0).symbol, ctx.expr())
+                is BStmt -> visitBStmt(ctx.block())
+                is Cond -> visitCond(ctx.expr(), ctx.stmt(0))
+                is CondElse -> visitCondElse(ctx.expr(), ctx.stmt(0), ctx.stmt(1))
+                is Decl -> visitDecl(ctx.type(), ctx.listItem())
+                is Decr -> visitDecr(ctx.IDENT(0).symbol)
+                is Empty -> {}
+                is Incr -> visitIncr(ctx.IDENT(0).symbol)
+                is Ret -> visitRet(ctx.expr())
+                is SExp -> visitExpr(ctx.expr())
+                is VRet -> visitVRet(ctx.start)
+                is While -> visitWhile(ctx.expr(), ctx.stmt(0))
+                is For -> visitFor(ctx.type(), ctx.IDENT(0).symbol, ctx.IDENT(1).symbol, ctx.stmt(0))
             }
         }
 
-        return Void();
+        return Void()
     }
 
     private fun checkIfStmtNotDecl(stmt: latteParser.StmtContext, objectType: String) {
-        if (stmt.result is latte.Absyn.Decl) {
+        if (stmt.result is Decl) {
             throw LatteException("a body of $objectType can't consist of a single declaration instruction", stmt.start.line, stmt.start.charPositionInLine)
         }
     }
@@ -313,7 +312,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         collection: Token?,
         stmt: latteParser.StmtContext?
     ) {
-        unexpectedErrorExit(type == null || variable == null || collection == null || stmt == null, "for loop");
+        unexpectedErrorExit(type == null || variable == null || collection == null || stmt == null, "for loop")
         val arrayType = getVariableType(collection!!)
         if (arrayType !is latte.Absyn.Array) {
             throw LatteException("for loop can be iterated only over arrays", collection.line, collection.charPositionInLine)
@@ -333,10 +332,10 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     }
 
     private fun visitWhile(expr: latteParser.ExprContext?, stmt: latteParser.StmtContext?) {
-        unexpectedErrorExit(expr == null || stmt == null, "while loop");
+        unexpectedErrorExit(expr == null || stmt == null, "while loop")
 
         val type = visitExpr(expr)
-        if (!compareTypes(latte.Absyn.Bool(), type)) {
+        if (!compareTypes(Bool(), type)) {
             throw LatteException("the condition of while loop must be of bool type", expr!!.start.line, expr.start.charPositionInLine)
         }
 
@@ -347,7 +346,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     private fun visitVRet(t: Token) {
         unexpectedErrorExit(currReturnType == null, "void return")
 
-        if (!compareTypes(currReturnType!!, latte.Absyn.Void())) {
+        if (!compareTypes(currReturnType!!, Void())) {
             throw LatteException("an empty return statement in a non-void function", t.line, t.charPositionInLine)
         }
     }
@@ -368,7 +367,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     private fun visitIncr(symbol: Token?) {
         unexpectedErrorExit(symbol == null, "incr")
         val type = getVariableType(symbol!!)
-        if (!compareTypes(latte.Absyn.Int(), type)) {
+        if (!compareTypes(Int(), type)) {
             throw LatteException("variable $symbol is not of type int", symbol.line, symbol.charPositionInLine)
         }
     }
@@ -376,12 +375,12 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     private fun visitDecr(symbol: Token?) {
         unexpectedErrorExit(symbol == null, "decr")
         val type = getVariableType(symbol!!)
-        if (!compareTypes(latte.Absyn.Int(), type)) {
+        if (!compareTypes(Int(), type)) {
             throw LatteException("variable $symbol is not of type int", symbol.line, symbol.charPositionInLine)
         }
     }
 
-    private fun visitDecl(type: latteParser.TypeContext?, listItem: latteParser.ListItemContext?) {
+    private fun visitDecl(type: TypeContext?, listItem: latteParser.ListItemContext?) {
         unexpectedErrorExit(type == null || listItem == null, "decl")
         typeExists(type!!)
 
@@ -392,7 +391,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(expr == null || stmt1 == null || stmt2 == null, "if-else")
 
         val type = visitExpr(expr)
-        if (!compareTypes(latte.Absyn.Bool(), type)) {
+        if (!compareTypes(Bool(), type)) {
             throw LatteException("the condition of if-else must be of bool type", expr!!.start.line, expr.start.charPositionInLine)
         }
 
@@ -406,7 +405,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(expr == null || stmt == null, "if")
 
         val type = visitExpr(expr)
-        if (!compareTypes(latte.Absyn.Bool(), type)) {
+        if (!compareTypes(Bool(), type)) {
             throw LatteException("the condition of if must be of bool type", expr!!.start.line, expr.start.charPositionInLine)
         }
 
@@ -437,7 +436,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         }
     }
 
-    private fun visitItem(type: latteParser.TypeContext?, ctx: latteParser.ItemContext?) {
+    private fun visitItem(type: TypeContext?, ctx: latteParser.ItemContext?) {
         unexpectedErrorExit(type == null || ctx == null, "item")
 
         addNewVariable(ctx!!.IDENT().symbol, type!!.result)
@@ -452,7 +451,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         }
     }
 
-    private fun visitListItem(type: latteParser.TypeContext?, ctx: latteParser.ListItemContext?) {
+    private fun visitListItem(type: TypeContext?, ctx: latteParser.ListItemContext?) {
         if (ctx != null) {
             visitItem(type, ctx.item())
             visitListItem(type, ctx.listItem())
@@ -465,11 +464,11 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         return when (ctx!!.result) {
             is ECast -> visitCast(ctx.type(), ctx.expr())
             is EChain -> visitListChainExpr(ctx.listChainExpr())
-            is ELitFalse -> latte.Absyn.Bool()
-            is ELitTrue -> latte.Absyn.Bool()
-            is ELitInt -> latte.Absyn.Int()
-            is ENull -> latte.Absyn.Null()
-            is EString -> latte.Absyn.Str()
+            is ELitFalse -> Bool()
+            is ELitTrue -> Bool()
+            is ELitInt -> Int()
+            is ENull -> Null()
+            is EString -> Str()
             else -> {
                 TODO("Unexpected type of Expr6")
             }
@@ -506,13 +505,13 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     ): Type {
         unexpectedErrorExit(chainVal == null || expr == null, "chain array")
 
-        val chainValType = visitChainVal(chainVal!!)
+        val chainValType = visitChainVal(chainVal!!, className)
         if (chainValType !is latte.Absyn.Array) {
             throw LatteException("variable is not an array", chainVal.start.line, chainVal.start.charPositionInLine)
         }
 
         val exprType = visitExpr(expr!!)
-        if (!compareTypes(latte.Absyn.Int(), exprType)) {
+        if (!compareTypes(Int(), exprType)) {
             throw LatteException("arrays can be indexed only by integers", expr.start.line, expr.start.charPositionInLine)
         }
 
@@ -560,7 +559,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         while (exprs != null && currArg < func.args.size) {
             val currExpr = exprs.expr()
             val exprType = visitExpr(currExpr)
-            val arg = func.args[currArg] as latte.Absyn.Ar
+            val arg = func.args[currArg] as Ar
             if (!compareTypes(arg.type_, exprType)) {
                 throw LatteException(
                     "argument ${arg.ident_} of function ${ident.text} received value of incorrect type, expected type=${arg.type_}, actual type:",
@@ -601,7 +600,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     override fun visitListChainExpr(ctx: latteParser.ListChainExprContext?): Type {
         unexpectedErrorExit(ctx == null, "chain expr list")
 
-        var type: Type = latte.Absyn.Null()
+        var type: Type = Null()
         var className = ""
         var next = ctx
 
@@ -623,17 +622,39 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(ctx == null, "expr5")
 
         return when(ctx!!.result) {
-            is latte.Absyn.Neg -> visitNeg(ctx.expr6())
-            is latte.Absyn.Not -> visitNot(ctx.expr6())
+            is Neg -> visitNeg(ctx.expr6())
+            is Not -> visitNot(ctx.expr6())
             else -> visitExpr6(ctx.expr6())
         }
+    }
+
+    private fun visitNot(expr: latteParser.Expr6Context?): Type {
+        unexpectedErrorExit(expr == null, "not")
+
+        val type = visitExpr6(expr)
+        if (!compareTypes(Bool(), type)) {
+            throw LatteException("not can be used only on boolean values", expr!!.start.line, expr.start.charPositionInLine)
+        }
+
+        return Bool()
+    }
+
+    private fun visitNeg(expr: latteParser.Expr6Context?): Type {
+        unexpectedErrorExit(expr == null, "neg")
+
+        val type = visitExpr6(expr)
+        if (!compareTypes(Int(), type)) {
+            throw LatteException("only integer values can be negated", expr!!.start.line, expr.start.charPositionInLine)
+        }
+
+        return Int()
     }
 
     override fun visitExpr4(ctx: latteParser.Expr4Context?): Type {
         unexpectedErrorExit(ctx == null, "expr4")
 
         return when(ctx!!.result) {
-            is latte.Absyn.EMul -> visitMulOp(ctx.mulOp(), ctx.expr4(), ctx.expr5())
+            is EMul -> visitMulOp(ctx.expr4(), ctx.expr5())
             else -> visitExpr5(ctx.expr5())
         }
     }
@@ -642,7 +663,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(ctx == null, "expr3")
 
         return when(ctx!!.result) {
-            is latte.Absyn.EAdd -> visitAddOp(ctx.addOp(), ctx.expr3(), ctx.expr4())
+            is EAdd -> visitAddOp(ctx.addOp(), ctx.expr3(), ctx.expr4())
             else -> visitExpr4(ctx.expr4())
         }
     }
@@ -651,7 +672,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(ctx == null, "expr2")
 
         return when(ctx!!.result) {
-            is latte.Absyn.ERel -> visitRelOp(ctx.relOp(), ctx.expr2(), ctx.expr3())
+            is ERel -> visitRelOp(ctx.relOp(), ctx.expr2(), ctx.expr3())
             else -> visitExpr3(ctx.expr3())
         }
     }
@@ -660,23 +681,50 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(ctx == null, "expr1")
 
         return when(ctx!!.result) {
-            is latte.Absyn.EAnd -> visitAnd(ctx.expr2(), ctx.expr1())
+            is EAnd -> visitAnd(ctx.expr2(), ctx.expr1())
             else -> visitExpr2(ctx.expr2())
         }
+    }
+
+    private fun visitAnd(left: latteParser.Expr2Context?, right: latteParser.Expr1Context?): Type {
+        unexpectedErrorExit(left == null || right == null, "and")
+
+        val leftType = visitExpr2(left)
+        if (!compareTypes(Bool(), leftType)) {
+            throw LatteException("and operation can be done only on boolean values", left!!.start.line, left.start.charPositionInLine)
+        }
+
+        val rightType = visitExpr1(right)
+        if (!compareTypes(Bool(), rightType)) {
+            throw LatteException("and operation can be done only on boolean values", right!!.start.line, right.start.charPositionInLine)
+        }
+
+        return Bool()
     }
 
     override fun visitExpr(ctx: latteParser.ExprContext?): Type {
         unexpectedErrorExit(ctx == null, "expr")
 
         return when(ctx!!.result) {
-            is latte.Absyn.EOr -> visitOr(ctx.expr1(), ctx.expr())
+            is EOr -> visitOr(ctx.expr1(), ctx.expr())
             else -> visitExpr1(ctx.expr1())
         }
     }
 
-    override fun visitListExpr(ctx: latteParser.ListExprContext?): Type {
-        // TODO: wait for EApp
-        return super.visitListExpr(ctx)
+    private fun visitOr(left: latteParser.Expr1Context?, right: latteParser.ExprContext?): Type {
+        unexpectedErrorExit(left == null || right == null, "or")
+
+        val leftType = visitExpr1(left)
+        if (!compareTypes(Bool(), leftType)) {
+            throw LatteException("or operation can be done only on boolean values", left!!.start.line, left.start.charPositionInLine)
+        }
+
+        val rightType = visitExpr(right)
+        if (!compareTypes(Bool(), rightType)) {
+            throw LatteException("or operation can be done only on boolean values", right!!.start.line, right.start.charPositionInLine)
+        }
+
+        return Bool()
     }
 
     private fun visitAddOp(
@@ -685,16 +733,25 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         right: latteParser.Expr4Context,
     ): Type {
         val leftType = visitExpr3(left)
-        if (!compareTypes(latte.Absyn.Int(), leftType)) {
+        val isInt = compareTypes(Int(), leftType)
+        val isString = compareTypes(Str(), leftType)
+
+        if (ctx.result is Plus && !isInt && !isString) {
             throw LatteException(
-                "addition and subtraction can be used only on integer values, found value of type $leftType",
+                "addition can be used only on integer and string values, found value of type $leftType",
+                left.start.line,
+                left.start.charPositionInLine,
+            )
+        } else if (!isInt) {
+            throw LatteException(
+                "subtraction can be used only on integer values, found value of type $leftType",
                 left.start.line,
                 left.start.charPositionInLine,
             )
         }
 
         val rightType = visitExpr4(right)
-        if (!compareTypes(latte.Absyn.Int(), rightType)) {
+        if (!compareTypes(Int(), rightType)) {
             throw LatteException(
                 "addition and subtraction can be used only on integer values, found value of type $rightType",
                 right.start.line,
@@ -702,16 +759,15 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             )
         }
 
-        return latte.Absyn.Int()
+        return Int()
     }
 
     private fun visitMulOp(
-        ctx: latteParser.MulOpContext,
         left: latteParser.Expr4Context,
         right: latteParser.Expr5Context,
     ): Type {
         val leftType = visitExpr4(left)
-        if (!compareTypes(latte.Absyn.Int(), leftType)) {
+        if (!compareTypes(Int(), leftType)) {
             throw LatteException(
                 "multiplication, division and modulo can be used only on integer values, found value of type $leftType",
                 left.start.line,
@@ -720,14 +776,14 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         }
 
         val rightType = visitExpr5(right)
-        if (!compareTypes(latte.Absyn.Int(), rightType)) {
+        if (!compareTypes(Int(), rightType)) {
             throw LatteException(
                 "multiplication, division and modulo can be used only on integer values, found value of type $rightType",
                 right.start.line,
                 right.start.charPositionInLine,
             )
         }
-        return latte.Absyn.Int()
+        return Int()
     }
 
     private fun visitRelOp(
@@ -736,9 +792,10 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         right: latteParser.Expr3Context,
     ): Type {
         val leftType = visitExpr2(left)
-        if (!compareTypes(latte.Absyn.Int(), leftType) && !compareTypes(latte.Absyn.Str(), leftType)) {
+        // FIXME: decide later if only arrays can't be compared
+        if (leftType is latte.Absyn.Array) {
             throw LatteException(
-                "comparisons can be done only for strings and integer values, found value of type $leftType",
+                "comparisons cannot be done on arrays",
                 left.start.line,
                 left.start.charPositionInLine,
             )
@@ -752,7 +809,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
                 right.start.charPositionInLine,
             )
         }
-        return latte.Absyn.Bool()
+        return Bool()
     }
 
 }
