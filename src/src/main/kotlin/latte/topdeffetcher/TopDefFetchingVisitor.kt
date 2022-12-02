@@ -1,12 +1,12 @@
 package latte.topdeffetcher
 
-import latte.Absyn.FnDef
-import latte.Absyn.SubClassDef
-import latte.Absyn.TopClassDef
+import latte.Absyn.*
 import latte.common.*
+import latte.common.ClassDef
 import latte.latteParser
 import latte.latteParserBaseVisitor
 import java.util.*
+import kotlin.collections.ArrayList
 
 class TopDefFetchingVisitor : latteParserBaseVisitor<LatteDefinitions>() {
 
@@ -19,6 +19,7 @@ class TopDefFetchingVisitor : latteParserBaseVisitor<LatteDefinitions>() {
     override fun visitStart_Program(ctx: latteParser.Start_ProgramContext?): LatteDefinitions? {
         return if (ctx != null) {
             try {
+                addPredefinedFunctions()
                 visitProgram(ctx.program())
                 definitions
             } catch (e: LatteException) {
@@ -29,6 +30,22 @@ class TopDefFetchingVisitor : latteParserBaseVisitor<LatteDefinitions>() {
             printErr("the program is empty", 0, 0)
             null
         }
+    }
+
+    private fun getArgOfType(type: Type): Arg {
+        return Ar(type, "")
+    }
+
+    private fun addPredefinedFunctions() {
+        val printIntArgs = ListArg()
+        printIntArgs.add(getArgOfType(Int()))
+        definitions.functions["printInt"] = FuncDef(Void(), printIntArgs)
+        val printStringArgs = ListArg()
+        printStringArgs.add(getArgOfType(Str()))
+        definitions.functions["printString"] = FuncDef(Void(), printStringArgs)
+        definitions.functions["error"] = FuncDef(Void(), ListArg())
+        definitions.functions["readInt"] = FuncDef(Int(), ListArg())
+        definitions.functions["readString"] = FuncDef(Str(), ListArg())
     }
 
     override fun visitProgram(ctx: latteParser.ProgramContext?): LatteDefinitions {

@@ -1,7 +1,8 @@
-compile: generate-antlr latc_llvm
+compile: antlr-dir latc_llvm
 	cd src && mvn compile assembly:single
 
-generate-antlr: antlr-4.11.1-complete.jar antlr-dir
+antlr-dir: antlr-4.11.1-complete.jar
+	mkdir antlr-dir
 	export OLDCLASSPATH=$$CLASSPATH && \
 	export CLASSPATH=$${PWD}/antlr-4.11.1-complete.jar && \
 	echo $$CLASSPATH && \
@@ -15,8 +16,6 @@ generate-antlr: antlr-4.11.1-complete.jar antlr-dir
 	mkdir -p src/src/main/java
 	cp -r antlr-dir/latte src/src/main/java
 
-antlr-dir:
-	mkdir antlr-dir
 
 antlr-4.11.1-complete.jar:
 	wget https://www.antlr.org/download/antlr-4.11.1-complete.jar

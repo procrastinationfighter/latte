@@ -6,6 +6,7 @@ import latte.typecheck.TypecheckingVisitor
 import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
 import java.io.File
+import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
     if (args.isEmpty()) {
@@ -23,17 +24,17 @@ fun main(args: Array<String>) {
     val parser = latteParser(CommonTokenStream(lexer))
 
     val tree = parser.start_Program()
-
-    val definitions = tree.accept(TopDefFetchingVisitor())
-
-    if (definitions == null) {
-        System.err.println("bad")
-    }
-
     try {
-        tree.accept(TypecheckingVisitor(definitions))
+        val topDefFetcher = TopDefFetchingVisitor()
+        val definitions = topDefFetcher.visitStart_Program(tree)!!
+        val typechecker = TypecheckingVisitor(definitions)
+        typechecker.visitStart_Program(tree)
+
+        System.err.println("good")
+        exitProcess(0)
     } catch (e: LatteException) {
         System.err.println("bad")
-        System.err.println(e.message)
+        System.err.println("semantic error (${e.line},${e.column}): " + e.message)
+        exitProcess(1)
     }
 }

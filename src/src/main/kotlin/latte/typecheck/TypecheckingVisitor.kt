@@ -145,6 +145,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
     override fun visitStart_Program(ctx: latteParser.Start_ProgramContext?): Type? {
         return if (ctx != null) {
+            currFunctions.add(definitions.functions)
             visitProgram(ctx.program())
         } else {
             null
@@ -222,7 +223,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
     override fun visitArg(ctx: latteParser.ArgContext?): Type {
         typeExists(ctx!!.type())
-        val prev = currVariables[currVariables.size - 1].put(ctx.text, ctx.type().result)
+        val prev = currVariables[currVariables.size - 1].put(ctx.IDENT().text, ctx.type().result)
         if (prev != null) {
             throw LatteException("argument with name ${ctx.text} already exists", ctx.start.line, ctx.start.charPositionInLine)
         }
@@ -231,7 +232,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     }
 
     override fun visitListArg(ctx: ListArgContext?): Type {
-        if (ctx != null) {
+        if (ctx?.arg() != null) {
             visitArg(ctx.arg())
             visitListArg(ctx.listArg())
         }
@@ -270,8 +271,8 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
     override fun visitListStmt(ctx: latteParser.ListStmtContext?): Type {
         if (ctx != null) {
-            visitStmt(ctx.stmt())
             visitListStmt(ctx.listStmt())
+            visitStmt(ctx.stmt())
         }
 
         return Void()
@@ -279,7 +280,6 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
     override fun visitStmt(ctx: latteParser.StmtContext?): Type {
         if (ctx != null) {
-
             when (ctx.result) {
                 is Ass -> visitAss(ctx.IDENT(0).symbol, ctx.expr())
                 is BStmt -> visitBStmt(ctx.block())
@@ -440,6 +440,10 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(type == null || ctx == null, "item")
 
         addNewVariable(ctx!!.IDENT().symbol, type!!.result)
+        if (ctx.expr() == null) {
+            // initalize later with zero value
+            return
+        }
         val exprType = visitExpr(ctx.expr())
 
         if (!compareTypes(type.result, exprType)) {
@@ -469,9 +473,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             is ELitInt -> Int()
             is ENull -> Null()
             is EString -> Str()
-            else -> {
-                TODO("Unexpected type of Expr6")
-            }
+            else -> visitExpr(ctx.expr())
         }
     }
 
@@ -742,7 +744,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
                 left.start.line,
                 left.start.charPositionInLine,
             )
-        } else if (!isInt) {
+        } else if (ctx.result is Minus && !isInt) {
             throw LatteException(
                 "subtraction can be used only on integer values, found value of type $leftType",
                 left.start.line,
@@ -751,15 +753,15 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         }
 
         val rightType = visitExpr4(right)
-        if (!compareTypes(Int(), rightType)) {
+        if (!compareTypes(leftType, rightType)) {
             throw LatteException(
-                "addition and subtraction can be used only on integer values, found value of type $rightType",
+                "addition and subtraction can be used only on values of the same type, left=$leftType, right=$rightType",
                 right.start.line,
                 right.start.charPositionInLine,
             )
         }
 
-        return Int()
+        return leftType
     }
 
     private fun visitMulOp(
