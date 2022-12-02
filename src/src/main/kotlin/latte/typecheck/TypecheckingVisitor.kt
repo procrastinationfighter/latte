@@ -561,7 +561,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         var exprs = listExpr
         var currArg = 0
 
-        while (exprs != null && currArg < func.args.size) {
+        while (exprs?.expr() != null && currArg < func.args.size) {
             val currExpr = exprs.expr()
             val exprType = visitExpr(currExpr)
             val arg = func.args[currArg] as Ar
@@ -577,15 +577,15 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             currArg++
         }
 
-        if (exprs != null) {
+        if (exprs?.expr() != null) {
             throw LatteException(
-                "function ${ident.text} received too few arguments",
+                "function ${ident.text} received too many arguments",
                 listExpr!!.start.line,
                 listExpr.start.charPositionInLine,
             )
         } else if (currArg < func.args.size) {
             throw LatteException(
-                "function ${ident.text} received too many arguments",
+                "function ${ident.text} received too few arguments",
                 listExpr!!.start.line,
                 listExpr.start.charPositionInLine,
             )
