@@ -14,6 +14,7 @@ import org.antlr.v4.runtime.Token
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
+import kotlin.system.exitProcess
 
 class TypecheckingVisitor(private val definitions: LatteDefinitions) : latteParserBaseVisitor<Type>() {
 
@@ -106,7 +107,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
     private fun unexpectedErrorExit(cond: Boolean, component: String) {
         if (cond) {
-            System.err.println("unexpected error, something is null in $component")
+            throw RuntimeException("unexpected error, something is null in $component")
         }
     }
 
@@ -280,6 +281,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
     override fun visitStmt(ctx: latteParser.StmtContext?): Type {
         if (ctx != null) {
+            System.err.println("visiting stmt in line ${ctx.start.line}")
             when (ctx.result) {
                 is Ass -> visitAss(ctx.IDENT(0).symbol, ctx.expr())
                 is BStmt -> visitBStmt(ctx.block())
@@ -354,11 +356,12 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     private fun visitRet(expr: latteParser.ExprContext?) {
         unexpectedErrorExit(currReturnType == null || expr == null, "return")
 
-        val exprType = visitExpr(expr!!)
+        val exprType = visitExpr(expr)
+
         if (!compareTypes(currReturnType!!, exprType)) {
             throw LatteException(
                 "wrong return type, expected=$currReturnType, actual=$exprType",
-                expr.start.line,
+                expr!!.start.line,
                 expr.start.charPositionInLine
             )
         }
@@ -551,7 +554,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     }
 
     private fun checkFunctionCall(listExpr: latteParser.ListExprContext?, func: FuncDef, ident: Token) {
-        if (listExpr == null && func.args.size == 0) {
+        if (listExpr?.expr() == null && func.args.size == 0) {
             return
         }
 
@@ -607,7 +610,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         var next = ctx
 
         while (next != null) {
-            type = visitChainExpr(ctx!!.chainExpr(), className)
+            type = visitChainExpr(next.chainExpr(), className)
             className = getClassName(type)
 
             next = next.listChainExpr()
@@ -657,6 +660,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
         return when(ctx!!.result) {
             is EMul -> visitMulOp(ctx.expr4(), ctx.expr5())
+            is EAnd -> visitExpr5(ctx.expr5())
             else -> visitExpr5(ctx.expr5())
         }
     }
@@ -666,6 +670,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
         return when(ctx!!.result) {
             is EAdd -> visitAddOp(ctx.addOp(), ctx.expr3(), ctx.expr4())
+            is EAnd -> visitExpr4(ctx.expr4())
             else -> visitExpr4(ctx.expr4())
         }
     }
@@ -675,6 +680,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
         return when(ctx!!.result) {
             is ERel -> visitRelOp(ctx.relOp(), ctx.expr2(), ctx.expr3())
+            is EAnd -> visitExpr3(ctx.expr3())
             else -> visitExpr3(ctx.expr3())
         }
     }
@@ -683,23 +689,31 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(ctx == null, "expr1")
 
         return when(ctx!!.result) {
-            is EAnd -> visitAnd(ctx.expr2(), ctx.expr1())
+            is EAnd -> {
+                // Something is wrong, but this works.
+                if (ctx.expr1() != null) {
+                    visitAnd(ctx.expr2(), ctx.expr1())
+                } else {
+                    visitExpr2(ctx.expr2())
+                }
+            }
             else -> visitExpr2(ctx.expr2())
         }
     }
 
     private fun visitAnd(left: latteParser.Expr2Context?, right: latteParser.Expr1Context?): Type {
-        unexpectedErrorExit(left == null || right == null, "and")
+        unexpectedErrorExit(left == null, "and left")
+        unexpectedErrorExit(right == null, "and right")
 
         val leftType = visitExpr2(left)
         if (!compareTypes(Bool(), leftType)) {
             throw LatteException("and operation can be done only on boolean values", left!!.start.line, left.start.charPositionInLine)
         }
 
-        val rightType = visitExpr1(right)
-        if (!compareTypes(Bool(), rightType)) {
-            throw LatteException("and operation can be done only on boolean values", right!!.start.line, right.start.charPositionInLine)
-        }
+//        val rightType = visitExpr1(right)
+//        if (!compareTypes(Bool(), rightType)) {
+//            throw LatteException("and operation can be done only on boolean values", right!!.start.line, right.start.charPositionInLine)
+//        }
 
         return Bool()
     }
@@ -709,6 +723,12 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
         return when(ctx!!.result) {
             is EOr -> visitOr(ctx.expr1(), ctx.expr())
+            is EAnd -> {
+                if (ctx.expr() != null) {
+                    System.err.println("EAnd is expr")
+                }
+                visitExpr1(ctx.expr1())
+            }
             else -> visitExpr1(ctx.expr1())
         }
     }

@@ -104,7 +104,7 @@ EVar.      ChainVal ::= Ident ;
 
 EApp.      ChainVal ::= Ident "(" [Expr] ")";
 
-separator ChainExpr "." ;
+separator nonempty ChainExpr "." ;
 
 Neg.       Expr5 ::= "-" Expr6 ;
 
