@@ -1,6 +1,7 @@
 package latte
 
 import latte.common.LatteException
+import latte.returnchecker.ReturnCheckerVisitor
 import latte.topdeffetcher.TopDefFetchingVisitor
 import latte.typecheck.TypecheckingVisitor
 import org.antlr.v4.runtime.CharStreams
@@ -27,8 +28,12 @@ fun main(args: Array<String>) {
     try {
         val topDefFetcher = TopDefFetchingVisitor()
         val definitions = topDefFetcher.visitStart_Program(tree)!!
-        val typechecker = TypecheckingVisitor(definitions)
-        typechecker.visitStart_Program(tree)
+
+        val typeChecker = TypecheckingVisitor(definitions)
+        typeChecker.visitStart_Program(tree)
+
+        val returnChecker = ReturnCheckerVisitor()
+        returnChecker.visitStartProgram(tree)
 
         System.err.println("good")
         exitProcess(0)

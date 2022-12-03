@@ -16,6 +16,12 @@ import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 import kotlin.system.exitProcess
 
+fun unexpectedErrorExit(cond: Boolean, component: String) {
+    if (cond) {
+        throw RuntimeException("unexpected error, something is null in $component")
+    }
+}
+
 class TypecheckingVisitor(private val definitions: LatteDefinitions) : latteParserBaseVisitor<Type>() {
 
     private var currVariables: MutableList<MutableMap<String, Type>> = ArrayList()
@@ -103,12 +109,6 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         }
 
         throw LatteException("function ${name.text} not declared in this scope", name.line, name.charPositionInLine)
-    }
-
-    private fun unexpectedErrorExit(cond: Boolean, component: String) {
-        if (cond) {
-            throw RuntimeException("unexpected error, something is null in $component")
-        }
     }
 
     private fun typeExists(t: TypeContext): Boolean {
