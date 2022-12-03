@@ -2,10 +2,8 @@ package latte.typecheck
 
 import latte.Absyn.*
 import latte.Absyn.Int
+import latte.common.*
 import latte.common.ClassDef
-import latte.common.FuncDef
-import latte.common.LatteDefinitions
-import latte.common.LatteException
 import latte.latteParser
 import latte.latteParser.BlockContext
 import latte.latteParser.ExprContext
@@ -108,7 +106,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         val prev = currVariables[currVariables.size - 1].put(name.text, type)
 
         if (prev != null) {
-            throw LatteException("variable $name is already declared in this scope", name.line, name.charPositionInLine)
+            throw LatteException("variable ${name.text} is already declared in this scope", name.line, name.charPositionInLine)
         }
     }
 
@@ -269,10 +267,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
     override fun visitClassDef(ctx: latteParser.ClassDefContext?): Type {
         return if (ctx!!.result is ClassVarDef) {
-            val prev = currVariables[currVariables.size - 1].put(ctx.p_1_2.text, ctx.type().result)
-            if (prev != null) {
-                throw LatteException("member variable with name ${ctx.p_1_2.text} already exists", ctx.start.line, ctx.start.charPositionInLine)
-            }
+            typeExists(ctx.type())
             Void()
         } else { // topdef
             visitTopDef(ctx.topDef())
@@ -310,7 +305,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     override fun visitStmt(ctx: latteParser.StmtContext?): Type {
         if (ctx != null) {
             when (ctx.result) {
-                is Ass -> visitAss(ctx.IDENT(0).symbol, ctx.expr())
+                is Ass -> visitAss(ctx.listChainExpr(), ctx.expr())
                 is BStmt -> visitBStmt(ctx.block())
                 is Cond -> visitCond(ctx.expr(), ctx.stmt(0))
                 is CondElse -> visitCondElse(ctx.expr(), ctx.stmt(0), ctx.stmt(1))
@@ -387,7 +382,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
         if (!compareTypes(currReturnType!!, exprType)) {
             throw LatteException(
-                "wrong return type, expected=$currReturnType, actual=$exprType",
+                "wrong return type, expected=${typeToString(currReturnType)}, actual=${typeToString(exprType)}",
                 expr!!.start.line,
                 expr.start.charPositionInLine
             )
@@ -451,15 +446,15 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         removeLastVarScope()
     }
 
-    private fun visitAss(ident: Token?, expr: ExprContext?) {
-        unexpectedErrorExit(ident == null || expr == null, "ass")
+    private fun visitAss(left: latteParser.ListChainExprContext?, expr: ExprContext?) {
+        unexpectedErrorExit(left == null || expr == null, "ass")
 
-        val varType = getVariableType(ident!!)
+        val varType = visitListChainExpr(left, true)
         val exprType = visitExpr(expr!!)
 
         if (!compareTypes(varType, exprType)) {
             throw LatteException(
-                "expression is not of required type, expected=$varType, actual=$exprType",
+                "expression is not of required type, expected=${typeToString(varType)}, actual=${typeToString(exprType)}",
                 expr.start.line,
                 expr.start.charPositionInLine
             )
@@ -478,7 +473,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
         if (!compareTypes(type.result, exprType)) {
             throw LatteException(
-                "expression is not of required type, expected=$type, actual=$exprType",
+                "expression is not of required type, expected=${typeToString(type.result)}, actual=${typeToString(exprType)}",
                 ctx.expr().start.line,
                 ctx.expr().start.charPositionInLine,
             )
@@ -497,7 +492,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
         return when (ctx!!.result) {
             is ECast -> visitCast(ctx.type(), ctx.expr())
-            is EChain -> visitListChainExpr(ctx.listChainExpr())
+            is EChain -> visitListChainExpr(ctx.listChainExpr(), false)
             is ELitFalse -> Bool()
             is ELitTrue -> Bool()
             is ELitInt -> Int()
@@ -537,18 +532,18 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         val exprType = visitExpr(expr)
 
         if (!compareTypes(type!!.result, exprType)) {
-            throw LatteException("expression is not of type ${type.result}", expr!!.start.line, expr.start.charPositionInLine)
+            throw LatteException("expression is not of type ${typeToString(type.result)}", expr!!.start.line, expr.start.charPositionInLine)
         }
 
         return type.result
     }
 
-    private fun visitChainExpr(ctx: latteParser.ChainExprContext?, className: String): Type {
+    private fun visitChainExpr(ctx: latteParser.ChainExprContext?, className: String, isAssign: Boolean): Type {
         unexpectedErrorExit(ctx == null, "chain expr")
 
         return when (ctx!!.result) {
             is EChainArray -> visitChainArray(ctx.chainVal(), ctx.expr(), className)
-            is EChainNormal -> visitChainVal(ctx.chainVal(), className)
+            is EChainNormal -> visitChainVal(ctx.chainVal(), className, isAssign)
             else -> {
                 TODO("Unexpected type of ChainExpr")
             }
@@ -562,7 +557,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     ): Type {
         unexpectedErrorExit(chainVal == null || expr == null, "chain array")
 
-        val chainValType = visitChainVal(chainVal!!, className)
+        val chainValType = visitChainVal(chainVal!!, className, false)
         if (chainValType !is latte.Absyn.Array) {
             throw LatteException("variable is not an array", chainVal.start.line, chainVal.start.charPositionInLine)
         }
@@ -575,7 +570,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         return chainValType.type_
     }
 
-    private fun visitChainVal(ctx: latteParser.ChainValContext?, className: String): Type {
+    private fun visitChainVal(ctx: latteParser.ChainValContext?, className: String, isAssign: Boolean): Type {
         unexpectedErrorExit(ctx == null, "chain val")
 
         return when (ctx!!.result) {
@@ -583,6 +578,13 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
                 visitVar(ctx.IDENT().symbol, className)
             }
             is EApp -> {
+                if (isAssign) {
+                    throw LatteException(
+                        "can't assign to temporary value created by ${ctx.IDENT().symbol.text}",
+                        ctx.start.line,
+                        ctx.start.charPositionInLine
+                    )
+                }
                 visitApp(ctx.IDENT().symbol, ctx.listExpr(), className)
             }
             else -> {
@@ -619,7 +621,9 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             val arg = func.args[currArg] as Ar
             if (!compareTypes(arg.type_, exprType)) {
                 throw LatteException(
-                    "argument ${arg.ident_} of function ${ident.text} received value of incorrect type, expected type=${arg.type_}, actual type:",
+                    "argument ${arg.ident_} of function ${ident.text} received value of incorrect type, " +
+                            "expected type=${typeToString(arg.type_)}, " +
+                            "actual type=${typeToString(exprType)}",
                     currExpr.start.line,
                     currExpr.start.charPositionInLine,
                 )
@@ -656,7 +660,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         }
     }
 
-    override fun visitListChainExpr(ctx: latteParser.ListChainExprContext?): Type {
+    private fun visitListChainExpr(ctx: latteParser.ListChainExprContext?, isAssign: Boolean): Type {
         unexpectedErrorExit(ctx == null, "chain expr list")
 
         var type: Type = Null()
@@ -664,7 +668,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         var next = ctx
 
         while (next != null) {
-            type = visitChainExpr(next.chainExpr(), className)
+            type = visitChainExpr(next.chainExpr(), className, isAssign)
             className = getClassName(type)
 
             next = next.listChainExpr()
@@ -764,10 +768,10 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             throw LatteException("and operation can be done only on boolean values", left!!.start.line, left.start.charPositionInLine)
         }
 
-//        val rightType = visitExpr1(right)
-//        if (!compareTypes(Bool(), rightType)) {
-//            throw LatteException("and operation can be done only on boolean values", right!!.start.line, right.start.charPositionInLine)
-//        }
+        val rightType = visitExpr1(right)
+        if (!compareTypes(Bool(), rightType)) {
+            throw LatteException("and operation can be done only on boolean values", right!!.start.line, right.start.charPositionInLine)
+        }
 
         return Bool()
     }
@@ -814,13 +818,13 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
         if (ctx.result is Plus && !isInt && !isString) {
             throw LatteException(
-                "addition can be used only on integer and string values, found value of type $leftType",
+                "addition can be used only on integer and string values, found value of type ${typeToString(leftType)}",
                 left.start.line,
                 left.start.charPositionInLine,
             )
         } else if (ctx.result is Minus && !isInt) {
             throw LatteException(
-                "subtraction can be used only on integer values, found value of type $leftType",
+                "subtraction can be used only on integer values, found value of type ${typeToString(leftType)}",
                 left.start.line,
                 left.start.charPositionInLine,
             )
@@ -829,7 +833,9 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         val rightType = visitExpr4(right)
         if (!compareTypes(leftType, rightType)) {
             throw LatteException(
-                "addition and subtraction can be used only on values of the same type, left=$leftType, right=$rightType",
+                "addition and subtraction can be used only on values of the same type, " +
+                        "left=${typeToString(leftType)}, " +
+                        "right=${typeToString(rightType)}",
                 right.start.line,
                 right.start.charPositionInLine,
             )
@@ -845,7 +851,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         val leftType = visitExpr4(left)
         if (!compareTypes(Int(), leftType)) {
             throw LatteException(
-                "multiplication, division and modulo can be used only on integer values, found value of type $leftType",
+                "multiplication, division and modulo can be used only on integer values, found value of type ${typeToString(leftType)}",
                 left.start.line,
                 left.start.charPositionInLine,
             )
@@ -854,7 +860,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         val rightType = visitExpr5(right)
         if (!compareTypes(Int(), rightType)) {
             throw LatteException(
-                "multiplication, division and modulo can be used only on integer values, found value of type $rightType",
+                "multiplication, division and modulo can be used only on integer values, found value of type ${typeToString(rightType)}",
                 right.start.line,
                 right.start.charPositionInLine,
             )
@@ -880,7 +886,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         val rightType = visitExpr3(right)
         if (!compareTypes(leftType, rightType)) {
             throw LatteException(
-                "cannot compare type $leftType with type $rightType",
+                "cannot compare type ${typeToString(leftType)} with type ${typeToString(rightType)}",
                 right.start.line,
                 right.start.charPositionInLine,
             )

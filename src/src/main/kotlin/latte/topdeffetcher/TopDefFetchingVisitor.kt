@@ -32,16 +32,16 @@ class TopDefFetchingVisitor : latteParserBaseVisitor<LatteDefinitions>() {
         }
     }
 
-    private fun getArgOfType(type: Type): Arg {
-        return Ar(type, "")
+    private fun getArgOfType(type: Type, name: String): Arg {
+        return Ar(type, name)
     }
 
     private fun addPredefinedFunctions() {
         val printIntArgs = ListArg()
-        printIntArgs.add(getArgOfType(Int()))
+        printIntArgs.add(getArgOfType(Int(), "intToPrint"))
         definitions.functions["printInt"] = FuncDef(Void(), printIntArgs)
         val printStringArgs = ListArg()
-        printStringArgs.add(getArgOfType(Str()))
+        printStringArgs.add(getArgOfType(Str(), "stringToPrint"))
         definitions.functions["printString"] = FuncDef(Void(), printStringArgs)
         definitions.functions["error"] = FuncDef(Void(), ListArg())
         definitions.functions["readInt"] = FuncDef(Int(), ListArg())

@@ -40,7 +40,7 @@ Init.      Item ::= Ident "=" Expr ;
 
 separator nonempty Item "," ;
 
-Ass.       Stmt ::= Ident "=" Expr  ";" ;
+Ass.       Stmt ::= [ChainExpr] "=" Expr  ";" ;
 
 Incr.      Stmt ::= Ident "++"  ";" ;
 
