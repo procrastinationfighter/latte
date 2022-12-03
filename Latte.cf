@@ -16,7 +16,7 @@ Ar. 	   Arg ::= Type Ident;
 
 separator  Arg "," ;
 
-ClassVarDef.  ClassDef ::= Type Ident ;
+ClassVarDef.  ClassDef ::= Type Ident ";" ;
 
 ClassTopDef.   ClassDef ::= TopDef ;
 
@@ -83,6 +83,10 @@ separator  Type "," ;
 -- Expressions ---------------------------------------------
 
 ECast.     Expr6 ::= "(" Type ")" Expr ;
+
+ENewObj.   Expr6 ::= "new" Ident ;
+
+ENewArr.   Expr6 ::= "new" Type "[" Expr "]" ;
 
 ENull.     Expr6 ::= "null" ;
 

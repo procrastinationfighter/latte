@@ -53,7 +53,7 @@ class ReturnCheckerVisitor {
         unexpectedErrorExit(ctx == null, "list class def")
         var listClassDef = ctx!!.listClassDef()
 
-        while (listClassDef != null) {
+        while (listClassDef?.classDef() != null) {
             visitClassDef(listClassDef.classDef())
             listClassDef = listClassDef.listClassDef()
         }

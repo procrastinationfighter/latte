@@ -18,7 +18,7 @@ class ClassDef(val parent: Optional<String>) {
 
     constructor(parent: Optional<String>, defs: ListClassDefContext?) : this(parent) {
         var classDefs = defs
-        while (classDefs != null) {
+        while (classDefs?.classDef() != null) {
             val classDef = classDefs.classDef()
             val def = classDef.result
             if (def is ClassTopDef) {
