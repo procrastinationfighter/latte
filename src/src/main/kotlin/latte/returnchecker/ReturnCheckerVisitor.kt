@@ -23,16 +23,16 @@ class ReturnCheckerVisitor {
             return
         }
 
-        if (ctx.result is FnDef) {
+        if ((ctx.result is FnDef) && (ctx.type().result !is Void)) {
             visitFun(ctx.IDENT(0).symbol, ctx.block())
-        } else {
+        } else if (ctx.result is TopClassDef || ctx.result is SubClassDef) {
             visitListClassDef(ctx.listClassDef())
         }
     }
 
     private fun visitListTopDef(ctx: latteParser.ListTopDefContext?) {
         unexpectedErrorExit(ctx == null, "list top def")
-        var listTopDef = ctx!!.listTopDef()
+        var listTopDef = ctx
 
         while (listTopDef != null) {
             visitTopDef(listTopDef.topDef())
@@ -73,7 +73,7 @@ class ReturnCheckerVisitor {
         var listStmt = ctx
 
         while (listStmt != null) {
-            if (visitStmt(listStmt.stmt())) {
+            if (listStmt.stmt() != null && visitStmt(listStmt.stmt())) {
                 return true
             }
 
@@ -88,7 +88,8 @@ class ReturnCheckerVisitor {
             is BStmt -> visitListStmt(ctx.block().listStmt())
             is Cond -> {
                 val cond = getExprConstBool(ctx.expr())
-                if (!cond.isPresent || cond.get()) {
+                if (cond.isPresent && cond.get()) {
+                    // If we always enter the if, check if it has returns
                     visitStmt(ctx.stmt(0))
                 } else {
                     false
@@ -97,8 +98,8 @@ class ReturnCheckerVisitor {
             is CondElse -> {
                 val cond = getExprConstBool(ctx.expr())
                 if (!cond.isPresent) {
-                    visitStmt(ctx.stmt(0))
-                    visitStmt(ctx.stmt(1))
+                    // return true only if both branches are true
+                    visitStmt(ctx.stmt(0)) && visitStmt(ctx.stmt(1))
                 } else {
                     if (cond.get()) {
                         visitStmt(ctx.stmt(0))
@@ -107,18 +108,18 @@ class ReturnCheckerVisitor {
                     }
                 }
             }
-            is Ret -> return true
-            is VRet -> return true
+            is Ret -> true
+            is VRet -> true
             is While -> {
                 val cond = getExprConstBool(ctx.expr())
                 if (!cond.isPresent) {
                     visitStmt(ctx.stmt(0))
                 } else {
                     // Treat while (true) as positive (because there are no break statements)
-                    return cond.get()
+                    cond.get()
                 }
             }
-            else -> return false
+            else -> false
         }
     }
 

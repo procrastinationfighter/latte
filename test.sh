@@ -1,10 +1,13 @@
 #!/bin/bash
 program=$1
 dir=$2
+expected=$3
 for f in $dir/*.lat
 do
-	echo "RUNNING TEST" ${f%.lat}
-	./${program} $f >/dev/null 2>/dev/null
+	./${program} $f
 	testresult=$?
-	echo "TEST" ${f%.in} "ENDED WITH RESULT:" ${testresult}
+	if [ -$testresult -ne -$expected ]
+	then
+	  echo "test $f failed"
+	fi
 done

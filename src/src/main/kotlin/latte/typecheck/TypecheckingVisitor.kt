@@ -281,7 +281,6 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
     override fun visitStmt(ctx: latteParser.StmtContext?): Type {
         if (ctx != null) {
-            System.err.println("visiting stmt in line ${ctx.start.line}")
             when (ctx.result) {
                 is Ass -> visitAss(ctx.IDENT(0).symbol, ctx.expr())
                 is BStmt -> visitBStmt(ctx.block())
