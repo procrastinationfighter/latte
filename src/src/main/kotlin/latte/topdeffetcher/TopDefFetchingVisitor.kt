@@ -6,14 +6,13 @@ import latte.common.ClassDef
 import latte.latteParser
 import latte.latteParserBaseVisitor
 import java.util.*
-import kotlin.collections.ArrayList
 
 class TopDefFetchingVisitor : latteParserBaseVisitor<LatteDefinitions>() {
 
     private var definitions: LatteDefinitions = LatteDefinitions()
 
     private fun printErr(message: String, line: Int, column: Int) {
-        System.err.println("DEFINITION ERROR ($line,$column): $message")
+        throw LatteException(message, line, column)
     }
 
     override fun visitStart_Program(ctx: latteParser.Start_ProgramContext?): LatteDefinitions? {

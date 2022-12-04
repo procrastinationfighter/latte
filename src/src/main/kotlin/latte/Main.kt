@@ -1,6 +1,7 @@
 package latte
 
 import latte.common.LatteException
+import latte.parse.ErrorListener
 import latte.returnchecker.ReturnCheckerVisitor
 import latte.topdeffetcher.TopDefFetchingVisitor
 import latte.typecheck.TypecheckingVisitor
@@ -18,14 +19,20 @@ fun main(args: Array<String>) {
         return
     }
 
-    val commonFilename = args[0].substring(0, args[0].length - 4)
     val input = File(args[0]).inputStream()
-
-    val lexer = latteLexer(CharStreams.fromStream(input))
-    val parser = latteParser(CommonTokenStream(lexer))
-
-    val tree = parser.start_Program()
     try {
+        val errorListener = ErrorListener()
+
+        val lexer = latteLexer(CharStreams.fromStream(input))
+        lexer.removeErrorListeners()
+        lexer.addErrorListener(errorListener)
+
+        val parser = latteParser(CommonTokenStream(lexer))
+        parser.removeErrorListeners()
+        parser.addErrorListener(errorListener)
+
+        val tree = parser.start_Program()
+
         val topDefFetcher = TopDefFetchingVisitor()
         val definitions = topDefFetcher.visitStart_Program(tree)!!
 
@@ -35,11 +42,11 @@ fun main(args: Array<String>) {
         val returnChecker = ReturnCheckerVisitor()
         returnChecker.visitStartProgram(tree)
 
-        System.err.println("good")
+        System.err.println("OK")
         exitProcess(0)
     } catch (e: LatteException) {
-        System.err.println("bad")
-        System.err.println("semantic error (${e.line},${e.column}): " + e.message)
+        System.err.println("ERROR")
+        System.err.println("error at (${e.line},${e.column}): " + e.message)
         exitProcess(1)
     }
 }
