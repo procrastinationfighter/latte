@@ -938,7 +938,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
                 left.start.line,
                 left.start.charPositionInLine,
             )
-        } else if (ctx.result !is EQU && leftType is Class) {
+        } else if (ctx.result !is EQU && ctx.result !is NE && leftType is Class) {
             throw LatteException(
                 "objects can only be compared as equal or not (==)",
                 left.start.line,
