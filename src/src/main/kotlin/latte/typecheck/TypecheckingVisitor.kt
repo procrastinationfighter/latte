@@ -476,8 +476,12 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         val left = visitArray(array!!, index!!)
         val right = visitExpr(expr)
 
-        if (!compareTypes(right, left)) {
-            throw LatteException("expression is not of type ${typeToString(left)}", expr!!.start.line, expr.start.charPositionInLine)
+        if (!compareTypes(left, right)) {
+            throw LatteException(
+                "expression is not of type, expected=${typeToString(left)}, actual=${typeToString(right)}",
+                expr!!.start.line,
+                expr.start.charPositionInLine
+            )
         }
 
         return left
@@ -489,8 +493,12 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         val left = visitClassVal(obj!!, member!!)
         val right = visitExpr(expr!!)
 
-        if (!compareTypes(right, left)) {
-            throw LatteException("expression is not of type ${typeToString(left)}", expr.start.line, expr.start.charPositionInLine)
+        if (!compareTypes(left, right)) {
+            throw LatteException(
+                "expression is not of type, expected=${typeToString(left)}, actual=${typeToString(right)}",
+                expr.start.line,
+                expr.start.charPositionInLine
+            )
         }
 
         return left
@@ -930,10 +938,18 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
                 left.start.line,
                 left.start.charPositionInLine,
             )
+        } else if (ctx.result !is EQU && leftType is Class) {
+            throw LatteException(
+                "objects can only be compared as equal or not (==)",
+                left.start.line,
+                left.start.charPositionInLine,
+            )
         }
 
         val rightType = visitExpr3(right)
-        if (!compareTypes(leftType, rightType)) {
+
+        // compare both combinations, because of comparing subclasses
+        if (!compareTypes(leftType, rightType) && !compareTypes(rightType, leftType)) {
             throw LatteException(
                 "cannot compare type ${typeToString(leftType)} with type ${typeToString(rightType)}",
                 right.start.line,
