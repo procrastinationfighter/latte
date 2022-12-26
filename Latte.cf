@@ -86,7 +86,7 @@ separator  Type "," ;
 
 -- Expressions ---------------------------------------------
 
-ENewObj.   Expr6 ::= "new" Ident ;
+ENewObj.   Expr6 ::= "new" Type ;
 
 ENewArr.   Expr6 ::= "new" Type "[" Expr "]" ;
 
@@ -110,7 +110,7 @@ EClassCall. Expr6 ::= Expr6 "." Ident "(" [Expr] ")" ;
 
 EClassVal. Expr6 ::= Expr6 "." Ident ;
 
-ECast.     Expr5 ::= "(" Type ")" Expr6 ;
+ECast.     Expr5 ::= "(" Ident ")" Expr6 ;
 
 Neg.       Expr5 ::= "-" Expr6 ;
 
