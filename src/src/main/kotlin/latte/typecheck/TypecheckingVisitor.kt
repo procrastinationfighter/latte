@@ -530,7 +530,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             is ENull -> Null()
             is EString -> Str()
             is ENewArr -> visitNewArr(ctx.type(), ctx.expr())
-            is ENewObj -> visitNewObj(ctx.IDENT().symbol)
+            is ENewObj -> visitNewObj(ctx.type())
             is EVar -> visitVar(ctx.IDENT().symbol)
             else -> visitExpr(ctx.expr())
         }
@@ -569,22 +569,29 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     }
 
     private fun visitClassVal(expr: latteParser.Expr6Context, member: Token): Type {
-        val leftType = visitExpr6(expr)
-        if (leftType !is Class) {
-            throw LatteException(
+        return when (val leftType = visitExpr6(expr)) {
+            is Class -> getClassVariable(leftType.ident_, member)
+            is Array -> getClassVariable("[]", member)
+            else -> throw LatteException(
                 "member variables can be extracted only from objects, found type ${typeToString(leftType)} instead",
                 expr.start.line,
                 expr.start.charPositionInLine,
             )
         }
-
-        return getClassVariable(leftType.ident_, member)
     }
 
-    private fun visitNewObj(type: Token?): Type {
+    private fun visitNewObj(type: TypeContext?): Type {
         unexpectedErrorExit(type == null, "new object")
-        if (definitions.classes[type!!.text] == null) {
-            throw LatteException("class ${type.text} has not been defined", type.line, type.charPositionInLine)
+        if (type!!.result !is Class) {
+            throw LatteException(
+                "only class and array instances can be initialized with new operator, found=${typeToString(type.result)}",
+                type.start.line,
+                type.start.charPositionInLine,
+            )
+        }
+
+        if (definitions.classes[type.text] == null) {
+            throw LatteException("class ${type.text} has not been defined", type.start.line, type.start.charPositionInLine)
         }
 
         return Class(type.text)

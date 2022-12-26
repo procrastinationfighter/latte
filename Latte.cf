@@ -86,9 +86,9 @@ separator  Type "," ;
 
 -- Expressions ---------------------------------------------
 
-ENewObj.   Expr6 ::= "new" Type ;
-
 ENewArr.   Expr6 ::= "new" Type "[" Expr "]" ;
+
+ENewObj.   Expr6 ::= "new" Type ;
 
 ENull.     Expr6 ::= "null" ;
 
