@@ -82,8 +82,6 @@ separator  Type "," ;
 
 -- Expressions ---------------------------------------------
 
-ECast.     Expr6 ::= "(" Type ")" Expr ;
-
 ENewObj.   Expr6 ::= "new" Ident ;
 
 ENewArr.   Expr6 ::= "new" Type "[" Expr "]" ;
@@ -109,6 +107,8 @@ EVar.      ChainVal ::= Ident ;
 EApp.      ChainVal ::= Ident "(" [Expr] ")";
 
 separator nonempty ChainExpr "." ;
+
+ECast.     Expr5 ::= "(" Type ")" Expr6 ;
 
 Neg.       Expr5 ::= "-" Expr6 ;
 
