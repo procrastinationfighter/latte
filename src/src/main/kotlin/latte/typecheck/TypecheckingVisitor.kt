@@ -726,8 +726,14 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(ctx == null, "expr4")
 
         return when(ctx!!.result) {
-            is EMul -> visitMulOp(ctx.expr4(), ctx.expr5())
-            is EAnd -> visitExpr5(ctx.expr5())
+            is EMul -> {
+                // Something is wrong, but this works.
+                if (ctx.expr4() != null) {
+                    visitMulOp(ctx.expr4(), ctx.expr5())
+                } else {
+                    visitExpr5(ctx.expr5())
+                }
+            }
             else -> visitExpr5(ctx.expr5())
         }
     }
@@ -736,8 +742,14 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(ctx == null, "expr3")
 
         return when(ctx!!.result) {
-            is EAdd -> visitAddOp(ctx.addOp(), ctx.expr3(), ctx.expr4())
-            is EAnd -> visitExpr4(ctx.expr4())
+            is EAdd -> {
+                // Something is wrong, but this works.
+                if (ctx.expr3() != null) {
+                    visitAddOp(ctx.addOp(), ctx.expr3(), ctx.expr4())
+                } else {
+                    visitExpr4(ctx.expr4())
+                }
+            }
             else -> visitExpr4(ctx.expr4())
         }
     }
@@ -746,8 +758,14 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(ctx == null, "expr2")
 
         return when(ctx!!.result) {
-            is ERel -> visitRelOp(ctx.relOp(), ctx.expr2(), ctx.expr3())
-            is EAnd -> visitExpr3(ctx.expr3())
+            is ERel -> {
+                // Something is wrong, but this works.
+                if (ctx.expr2() != null) {
+                    visitRelOp(ctx.relOp(), ctx.expr2(), ctx.expr3())
+                } else {
+                    visitExpr3(ctx.expr3())
+                }
+            }
             else -> visitExpr3(ctx.expr3())
         }
     }
@@ -789,12 +807,13 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(ctx == null, "expr")
 
         return when(ctx!!.result) {
-            is EOr -> visitOr(ctx.expr1(), ctx.expr())
-            is EAnd -> {
+            is EOr -> {
+                // Something is wrong, but this works.
                 if (ctx.expr() != null) {
-                    System.err.println("EAnd is expr")
+                    visitOr(ctx.expr1(), ctx.expr())
+                } else {
+                    visitExpr1(ctx.expr1())
                 }
-                visitExpr1(ctx.expr1())
             }
             else -> visitExpr1(ctx.expr1())
         }
@@ -854,10 +873,11 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     }
 
     private fun visitMulOp(
-        left: latteParser.Expr4Context,
-        right: latteParser.Expr5Context,
+        left: latteParser.Expr4Context?,
+        right: latteParser.Expr5Context?,
     ): Type {
-        val leftType = visitExpr4(left)
+        unexpectedErrorExit(left == null || right == null, "mul")
+        val leftType = visitExpr4(left!!)
         if (!compareTypes(Int(), leftType)) {
             throw LatteException(
                 "multiplication, division and modulo can be used only on integer values, found value of type ${typeToString(leftType)}",
@@ -866,7 +886,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             )
         }
 
-        val rightType = visitExpr5(right)
+        val rightType = visitExpr5(right!!)
         if (!compareTypes(Int(), rightType)) {
             throw LatteException(
                 "multiplication, division and modulo can be used only on integer values, found value of type ${typeToString(rightType)}",
