@@ -305,18 +305,20 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     override fun visitStmt(ctx: latteParser.StmtContext?): Type {
         if (ctx != null) {
             when (ctx.result) {
-                is Ass -> visitAss(ctx.listChainExpr(), ctx.expr())
+                is ArrayAss -> visitArrayAss(ctx.expr(0), ctx.expr(1), ctx.expr(2))
+                is Ass -> visitAss(ctx.IDENT(0).symbol, ctx.expr(0))
                 is BStmt -> visitBStmt(ctx.block())
-                is Cond -> visitCond(ctx.expr(), ctx.stmt(0))
-                is CondElse -> visitCondElse(ctx.expr(), ctx.stmt(0), ctx.stmt(1))
+                is ClassAss -> visitClassAss(ctx.expr(0), ctx.IDENT(0).symbol, ctx.expr(1))
+                is Cond -> visitCond(ctx.expr(0), ctx.stmt(0))
+                is CondElse -> visitCondElse(ctx.expr(0), ctx.stmt(0), ctx.stmt(1))
                 is Decl -> visitDecl(ctx.type(), ctx.listItem())
                 is Decr -> visitDecr(ctx.IDENT(0).symbol)
                 is Empty -> {}
                 is Incr -> visitIncr(ctx.IDENT(0).symbol)
-                is Ret -> visitRet(ctx.expr())
-                is SExp -> visitExpr(ctx.expr())
+                is Ret -> visitRet(ctx.expr(0))
+                is SExp -> visitExpr(ctx.expr(0))
                 is VRet -> visitVRet(ctx.start)
-                is While -> visitWhile(ctx.expr(), ctx.stmt(0))
+                is While -> visitWhile(ctx.expr(0), ctx.stmt(0))
                 is For -> visitFor(ctx.type(), ctx.IDENT(0).symbol, ctx.IDENT(1).symbol, ctx.stmt(0))
             }
         }
@@ -491,7 +493,10 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(ctx == null, "expr6")
 
         return when (ctx!!.result) {
-            is EChain -> visitListChainExpr(ctx.listChainExpr(), false)
+            is EApp -> visitApp(ctx.IDENT().symbol, ctx.listExpr())
+            is EArray -> visitArray(ctx.expr6(), ctx.expr())
+            is EClassCall -> visitClassCall(ctx.expr6(), ctx.IDENT().symbol, ctx.listExpr())
+            is EClassVal -> visitClassVal(ctx.expr6(), ctx.IDENT().symbol)
             is ELitFalse -> Bool()
             is ELitTrue -> Bool()
             is ELitInt -> Int()
@@ -499,6 +504,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             is EString -> Str()
             is ENewArr -> visitNewArr(ctx.type(), ctx.expr())
             is ENewObj -> visitNewObj(ctx.IDENT().symbol)
+            is EVar -> visitVar(ctx.IDENT().symbol)
             else -> visitExpr(ctx.expr())
         }
     }

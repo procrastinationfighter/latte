@@ -40,7 +40,11 @@ Init.      Item ::= Ident "=" Expr ;
 
 separator nonempty Item "," ;
 
-Ass.       Stmt ::= [ChainExpr] "=" Expr  ";" ;
+Ass.       Stmt ::= Ident "=" Expr  ";" ;
+
+ClassAss.  Stmt ::= Expr "." Ident "=" Expr ";" ;
+
+ArrayAss.  Stmt ::= Expr "[" Expr "]" "=" Expr ";" ;
 
 Incr.      Stmt ::= Ident "++"  ";" ;
 
@@ -96,17 +100,15 @@ ELitFalse. Expr6 ::= "false" ;
 
 EString.   Expr6 ::= String ;
 
-EChain.    Expr6 ::= [ChainExpr] ;
+EVar.      Expr6 ::= Ident ;
 
-EChainArray. ChainExpr ::= ChainVal "[" Expr "]" ;
+EApp.      Expr6 ::= Ident "(" [Expr] ")" ;
 
-EChainNormal. ChainExpr ::= ChainVal ;
+EArray.    Expr6 ::= Expr6 "[" Expr "]" ;
 
-EVar.      ChainVal ::= Ident ;
+EClassCall. Expr6 ::= Expr6 "." Ident "(" [Expr] ")" ;
 
-EApp.      ChainVal ::= Ident "(" [Expr] ")";
-
-separator nonempty ChainExpr "." ;
+EClassVal. Expr6 ::= Expr6 "." Ident ;
 
 ECast.     Expr5 ::= "(" Type ")" Expr6 ;
 
