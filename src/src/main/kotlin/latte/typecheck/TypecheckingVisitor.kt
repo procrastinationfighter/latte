@@ -249,6 +249,9 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
 
     override fun visitArg(ctx: latteParser.ArgContext?): Type {
         typeExists(ctx!!.type())
+        if (ctx.type().result is Void) {
+            throw LatteException("void can't be an argument type", ctx.type().start.line, ctx.type().start.charPositionInLine)
+        }
         val prev = currVariables[currVariables.size - 1].put(ctx.IDENT().text, ctx.type().result)
         if (prev != null) {
             throw LatteException("argument with name ${ctx.text} already exists", ctx.start.line, ctx.start.charPositionInLine)
@@ -411,6 +414,9 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     private fun visitDecl(type: TypeContext?, listItem: latteParser.ListItemContext?) {
         unexpectedErrorExit(type == null || listItem == null, "decl")
         typeExists(type!!)
+        if (type.result is Void) {
+            throw LatteException("void can't be a variable type", type.start.line, type.start.charPositionInLine)
+        }
 
         visitListItem(type, listItem)
     }
@@ -904,9 +910,15 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     ): Type {
         val leftType = visitExpr2(left)
         // FIXME: decide later if only arrays can't be compared
-        if (leftType is latte.Absyn.Array) {
+        if (leftType is Array) {
             throw LatteException(
                 "comparisons cannot be done on arrays",
+                left.start.line,
+                left.start.charPositionInLine,
+            )
+        } else if (leftType is Void) {
+            throw LatteException(
+                "comparisons cannot be done on void",
                 left.start.line,
                 left.start.charPositionInLine,
             )
