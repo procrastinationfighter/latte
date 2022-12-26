@@ -126,7 +126,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         val type = t.result
         if (type is Class && !definitions.classes.contains(type.ident_)) {
             throw LatteException("type ${type.ident_} has not been defined", t.start.line, t.start.charPositionInLine)
-        } else if (type is latte.Absyn.Array) {
+        } else if (type is Array) {
             return typeExists(t.type())
         }
 
@@ -139,7 +139,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             is Int -> return r is Int
             is Bool -> return r is Bool
             is Str -> return r is Str
-            is latte.Absyn.Array -> return r is latte.Absyn.Array && compareTypes(l.type_, r.type_)
+            is Array -> return r is Array && compareTypes(l.type_, r.type_)
             is Void -> return r is Void
             is Class -> {
                 if (r is Class) {
@@ -306,10 +306,10 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     override fun visitStmt(ctx: latteParser.StmtContext?): Type {
         if (ctx != null) {
             when (ctx.result) {
-                is ArrayAss -> visitArrayAss(ctx.expr(0), ctx.expr(1), ctx.expr(2))
+                is ArrayAss -> visitArrayAss(ctx.expr6(), ctx.expr(0), ctx.expr(1))
                 is Ass -> visitAss(ctx.IDENT(0).symbol, ctx.expr(0))
                 is BStmt -> visitBStmt(ctx.block())
-                is ClassAss -> visitClassAss(ctx.expr(0), ctx.IDENT(0).symbol, ctx.expr(1))
+                is ClassAss -> visitClassAss(ctx.expr6(), ctx.IDENT(0).symbol, ctx.expr(0))
                 is Cond -> visitCond(ctx.expr(0), ctx.stmt(0))
                 is CondElse -> visitCondElse(ctx.expr(0), ctx.stmt(0), ctx.stmt(1))
                 is Decl -> visitDecl(ctx.type(), ctx.listItem())
@@ -341,7 +341,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     ) {
         unexpectedErrorExit(type == null || variable == null || collection == null || stmt == null, "for loop")
         val arrayType = getVariableType(collection!!)
-        if (arrayType !is latte.Absyn.Array) {
+        if (arrayType !is Array) {
             throw LatteException("for loop can be iterated only over arrays", collection.line, collection.charPositionInLine)
         }
         typeExists(type!!)
@@ -449,10 +449,10 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         removeLastVarScope()
     }
 
-    private fun visitAss(left: latteParser.ListChainExprContext?, expr: ExprContext?) {
+    private fun visitAss(left: Token?, expr: ExprContext?) {
         unexpectedErrorExit(left == null || expr == null, "ass")
 
-        val varType = visitListChainExpr(left, true)
+        val varType = getVariableType(left!!)
         val exprType = visitExpr(expr!!)
 
         if (!compareTypes(varType, exprType)) {
@@ -462,6 +462,32 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
                 expr.start.charPositionInLine
             )
         }
+    }
+
+    private fun visitArrayAss(array: latteParser.Expr6Context?, index: ExprContext?, expr: ExprContext?): Type {
+        unexpectedErrorExit(array == null || index == null || expr == null, "array ass")
+
+        val left = visitArray(array!!, index!!)
+        val right = visitExpr(expr)
+
+        if (!compareTypes(right, left)) {
+            throw LatteException("expression is not of type ${typeToString(left)}", expr!!.start.line, expr.start.charPositionInLine)
+        }
+
+        return left
+    }
+
+    private fun visitClassAss(obj: latteParser.Expr6Context?, member: Token?, expr: ExprContext?): Type {
+        unexpectedErrorExit(obj == null || member == null || expr == null, "class ass")
+
+        val left = visitClassVal(obj!!, member!!)
+        val right = visitExpr(expr!!)
+
+        if (!compareTypes(right, left)) {
+            throw LatteException("expression is not of type ${typeToString(left)}", expr.start.line, expr.start.charPositionInLine)
+        }
+
+        return left
     }
 
     private fun visitItem(type: TypeContext?, ctx: latteParser.ItemContext?) {
@@ -505,7 +531,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             is EString -> Str()
             is ENewArr -> visitNewArr(ctx.type(), ctx.expr())
             is ENewObj -> visitNewObj(ctx.IDENT().symbol)
-            is EVar -> visitVar(ctx.IDENT().symbol, "")
+            is EVar -> visitVar(ctx.IDENT().symbol)
             else -> visitExpr(ctx.expr())
         }
     }
@@ -567,7 +593,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     private fun visitNewArr(type: TypeContext?, expr: ExprContext?): Type {
         unexpectedErrorExit(type == null || expr == null, "new array")
         typeExists(type!!)
-        if (type.result is latte.Absyn.Array) {
+        if (type.result is Array) {
             throw LatteException("multidimensional arrays are not supported", type.start.line, type.start.charPositionInLine)
         }
 
@@ -646,15 +672,13 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         }
     }
 
-    private fun visitVar(ident: Token?, className: String): Type {
+    private fun visitVar(ident: Token?): Type {
         unexpectedErrorExit(ident == null, "var")
 
         return if (ident!!.text == "self") {
             return Class(currClass)
-        } else if (className == "") {
-            getVariableType(ident)
         } else {
-            getClassVariable(className, ident)
+            getVariableType(ident)
         }
     }
 

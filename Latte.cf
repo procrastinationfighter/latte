@@ -42,9 +42,9 @@ separator nonempty Item "," ;
 
 Ass.       Stmt ::= Ident "=" Expr  ";" ;
 
-ClassAss.  Stmt ::= Expr "." Ident "=" Expr ";" ;
+ClassAss.  Stmt ::= Expr6 "." Ident "=" Expr ";" ;
 
-ArrayAss.  Stmt ::= Expr "[" Expr "]" "=" Expr ";" ;
+ArrayAss.  Stmt ::= Expr6 "[" Expr "]" "=" Expr ";" ;
 
 Incr.      Stmt ::= Ident "++"  ";" ;
 

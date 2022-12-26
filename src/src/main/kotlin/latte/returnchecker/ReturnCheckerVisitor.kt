@@ -87,7 +87,7 @@ class ReturnCheckerVisitor {
         return when (ctx!!.result) {
             is BStmt -> visitListStmt(ctx.block().listStmt())
             is Cond -> {
-                val cond = getExprConstBool(ctx.expr())
+                val cond = getExprConstBool(ctx.expr(0))
                 if (cond.isPresent && cond.get()) {
                     // If we always enter the if, check if it has returns
                     visitStmt(ctx.stmt(0))
@@ -96,7 +96,7 @@ class ReturnCheckerVisitor {
                 }
             }
             is CondElse -> {
-                val cond = getExprConstBool(ctx.expr())
+                val cond = getExprConstBool(ctx.expr(0))
                 if (!cond.isPresent) {
                     // return true only if both branches are true
                     visitStmt(ctx.stmt(0)) && visitStmt(ctx.stmt(1))
@@ -111,7 +111,7 @@ class ReturnCheckerVisitor {
             is Ret -> true
             is VRet -> true
             is While -> {
-                val cond = getExprConstBool(ctx.expr())
+                val cond = getExprConstBool(ctx.expr(0))
                 if (!cond.isPresent) {
                     visitStmt(ctx.stmt(0))
                 } else {
