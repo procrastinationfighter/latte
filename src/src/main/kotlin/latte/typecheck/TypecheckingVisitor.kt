@@ -399,7 +399,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(symbol == null, "incr")
         val type = getVariableType(symbol!!)
         if (!compareTypes(Int(), type)) {
-            throw LatteException("variable $symbol is not of type int", symbol.line, symbol.charPositionInLine)
+            throw LatteException("variable ${symbol.text} is not of type int", symbol.line, symbol.charPositionInLine)
         }
     }
 
@@ -407,7 +407,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(symbol == null, "decr")
         val type = getVariableType(symbol!!)
         if (!compareTypes(Int(), type)) {
-            throw LatteException("variable $symbol is not of type int", symbol.line, symbol.charPositionInLine)
+            throw LatteException("variable ${symbol.text} is not of type int", symbol.line, symbol.charPositionInLine)
         }
     }
 
