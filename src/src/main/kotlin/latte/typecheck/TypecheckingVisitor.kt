@@ -535,7 +535,14 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             is ELitInt -> Int()
             is ENull -> Null()
             is EString -> Str()
-            is ENewArr -> visitNewArr(ctx.type(), ctx.expr())
+            is ENewArr -> {
+                // something is wrong, similar to binary ops
+                if (ctx.type() != null) {
+                    visitNewArr(ctx.type(), ctx.expr())
+                } else {
+                    visitExpr(ctx.expr())
+                }
+            }
             is ENewObj -> visitNewObj(ctx.type())
             is EVar -> visitVar(ctx.IDENT().symbol)
             else -> visitExpr(ctx.expr())
@@ -604,7 +611,8 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     }
 
     private fun visitNewArr(type: TypeContext?, expr: ExprContext?): Type {
-        unexpectedErrorExit(type == null || expr == null, "new array")
+        unexpectedErrorExit(type == null, "new array type")
+        unexpectedErrorExit(expr == null, "new array expr")
         typeExists(type!!)
         if (type.result is Array) {
             throw LatteException("multidimensional arrays are not supported", type.start.line, type.start.charPositionInLine)
