@@ -532,15 +532,16 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         return Array(type.result)
     }
 
-    private fun visitCast(type: TypeContext?, expr: latteParser.Expr6Context?): Type {
+    private fun visitCast(type: Token?, expr: latteParser.Expr6Context?): Type {
         unexpectedErrorExit(type == null || expr == null, "cast")
         val exprType = visitExpr6(expr)
+        val t = Class(type!!.text)
 
-        if (!compareTypes(type!!.result, exprType)) {
-            throw LatteException("expression is not of type ${typeToString(type.result)}", expr!!.start.line, expr.start.charPositionInLine)
+        if (!compareTypes(t, exprType)) {
+            throw LatteException("expression is not of type ${typeToString(t)}", expr!!.start.line, expr.start.charPositionInLine)
         }
 
-        return type.result
+        return t
     }
 
     private fun visitChainExpr(ctx: latteParser.ChainExprContext?, className: String, isAssign: Boolean): Type {
@@ -690,7 +691,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(ctx == null, "expr5")
 
         return when(ctx!!.result) {
-            is ECast -> visitCast(ctx.type(), ctx.expr6())
+            is ECast -> visitCast(ctx.IDENT().symbol, ctx.expr6())
             is Neg -> visitNeg(ctx.expr6())
             is Not -> visitNot(ctx.expr6())
             else -> visitExpr6(ctx.expr6())
