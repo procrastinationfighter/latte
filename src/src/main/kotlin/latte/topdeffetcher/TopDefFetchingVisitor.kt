@@ -56,6 +56,9 @@ class TopDefFetchingVisitor : latteParserBaseVisitor<LatteDefinitions>() {
 
         // Check if a main function has been defined.
         val main = this.definitions.functions["main"] ?: throw LatteException("main function has not been defined", 0, 0)
+        if (!main.args.isEmpty()) {
+            throw LatteException("main function can't take arguments", 0, 0)
+        }
 
         return this.definitions
     }
