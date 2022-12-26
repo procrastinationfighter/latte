@@ -5,6 +5,7 @@ latc_llvm
 antlr-4.11.1-complete.jar
 antlr-dir
 latc
+plans.txt
 
 lattests201003.tgz
 tests
