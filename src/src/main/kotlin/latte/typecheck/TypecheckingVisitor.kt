@@ -390,7 +390,13 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             throw LatteException(
                 "wrong return type, expected=${typeToString(currReturnType)}, actual=${typeToString(exprType)}",
                 expr!!.start.line,
-                expr.start.charPositionInLine
+                expr.start.charPositionInLine,
+            )
+        } else if (exprType is Void) {
+            throw LatteException(
+                "can't return void type",
+                expr!!.start.line,
+                expr.start.charPositionInLine,
             )
         }
     }
