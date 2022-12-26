@@ -1,6 +1,7 @@
 package latte.typecheck
 
 import latte.Absyn.*
+import latte.Absyn.Array
 import latte.Absyn.Int
 import latte.common.*
 import latte.common.ClassDef
@@ -493,7 +494,7 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         unexpectedErrorExit(ctx == null, "expr6")
 
         return when (ctx!!.result) {
-            is EApp -> visitApp(ctx.IDENT().symbol, ctx.listExpr())
+            is EApp -> visitApp(ctx.IDENT().symbol, ctx.listExpr(), "")
             is EArray -> visitArray(ctx.expr6(), ctx.expr())
             is EClassCall -> visitClassCall(ctx.expr6(), ctx.IDENT().symbol, ctx.listExpr())
             is EClassVal -> visitClassVal(ctx.expr6(), ctx.IDENT().symbol)
@@ -504,9 +505,54 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             is EString -> Str()
             is ENewArr -> visitNewArr(ctx.type(), ctx.expr())
             is ENewObj -> visitNewObj(ctx.IDENT().symbol)
-            is EVar -> visitVar(ctx.IDENT().symbol)
+            is EVar -> visitVar(ctx.IDENT().symbol, "")
             else -> visitExpr(ctx.expr())
         }
+    }
+
+    private fun visitArray(expr: latteParser.Expr6Context, index: ExprContext): Type {
+        val leftType = visitExpr6(expr)
+        val rightType = visitExpr(index)
+
+        if (leftType !is Array) {
+            throw LatteException(
+                "indexed value is not an array, it's ${typeToString(leftType)} instead",
+                expr.start.line,
+                expr.start.charPositionInLine,
+            )
+        }
+
+        if (!compareTypes(Int(), rightType)) {
+            throw LatteException("arrays can be indexed only by integers", index.start.line, index.start.charPositionInLine)
+        }
+
+        return leftType.type_
+    }
+
+    private fun visitClassCall(expr: latteParser.Expr6Context, methodName: Token, listExpr: latteParser.ListExprContext?): Type {
+        val leftType = visitExpr6(expr)
+        if (leftType !is Class) {
+            throw LatteException(
+                "method can be called only on objects, found type ${typeToString(leftType)} instead",
+                expr.start.line,
+                expr.start.charPositionInLine,
+            )
+        }
+
+        return visitApp(methodName, listExpr, leftType.ident_)
+    }
+
+    private fun visitClassVal(expr: latteParser.Expr6Context, member: Token): Type {
+        val leftType = visitExpr6(expr)
+        if (leftType !is Class) {
+            throw LatteException(
+                "member variables can be extracted only from objects, found type ${typeToString(leftType)} instead",
+                expr.start.line,
+                expr.start.charPositionInLine,
+            )
+        }
+
+        return getClassVariable(leftType.ident_, member)
     }
 
     private fun visitNewObj(type: Token?): Type {
@@ -544,60 +590,6 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         return t
     }
 
-    private fun visitChainExpr(ctx: latteParser.ChainExprContext?, className: String, isAssign: Boolean): Type {
-        unexpectedErrorExit(ctx == null, "chain expr")
-
-        return when (ctx!!.result) {
-            is EChainArray -> visitChainArray(ctx.chainVal(), ctx.expr(), className)
-            is EChainNormal -> visitChainVal(ctx.chainVal(), className, isAssign)
-            else -> {
-                TODO("Unexpected type of ChainExpr")
-            }
-        }
-    }
-
-    private fun visitChainArray(
-        chainVal: latteParser.ChainValContext?,
-        expr: ExprContext?,
-        className: String
-    ): Type {
-        unexpectedErrorExit(chainVal == null || expr == null, "chain array")
-
-        val chainValType = visitChainVal(chainVal!!, className, false)
-        if (chainValType !is latte.Absyn.Array) {
-            throw LatteException("variable is not an array", chainVal.start.line, chainVal.start.charPositionInLine)
-        }
-
-        val exprType = visitExpr(expr!!)
-        if (!compareTypes(Int(), exprType)) {
-            throw LatteException("arrays can be indexed only by integers", expr.start.line, expr.start.charPositionInLine)
-        }
-
-        return chainValType.type_
-    }
-
-    private fun visitChainVal(ctx: latteParser.ChainValContext?, className: String, isAssign: Boolean): Type {
-        unexpectedErrorExit(ctx == null, "chain val")
-
-        return when (ctx!!.result) {
-            is EVar -> {
-                visitVar(ctx.IDENT().symbol, className)
-            }
-            is EApp -> {
-                if (isAssign) {
-                    throw LatteException(
-                        "can't assign to temporary value created by ${ctx.IDENT().symbol.text}",
-                        ctx.start.line,
-                        ctx.start.charPositionInLine
-                    )
-                }
-                visitApp(ctx.IDENT().symbol, ctx.listExpr(), className)
-            }
-            else -> {
-                TODO("Unexpected type of ChainVal")
-            }
-        }
-    }
 
     private fun visitApp(ident: Token?, listExpr: latteParser.ListExprContext?, className: String): Type {
         unexpectedErrorExit(ident == null, "app")
@@ -664,27 +656,6 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
         } else {
             getClassVariable(className, ident)
         }
-    }
-
-    private fun visitListChainExpr(ctx: latteParser.ListChainExprContext?, isAssign: Boolean): Type {
-        unexpectedErrorExit(ctx == null, "chain expr list")
-
-        var type: Type = Null()
-        var className = ""
-        var next = ctx
-
-        while (next != null) {
-            type = visitChainExpr(next.chainExpr(), className, isAssign)
-            className = getClassName(type)
-
-            next = next.listChainExpr()
-
-            if (className == "" && next != null) {
-                throw LatteException("chained calls can be used only on objects", next.start.line, next.start.charPositionInLine)
-            }
-        }
-
-        return type
     }
 
     override fun visitExpr5(ctx: latteParser.Expr5Context?): Type {
