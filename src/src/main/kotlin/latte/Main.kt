@@ -1,8 +1,10 @@
 package latte
 
+import latte.Absyn.Prog
 import latte.common.LatteException
 import latte.parse.ErrorListener
 import latte.returnchecker.ReturnCheckerVisitor
+import latte.ssaconverter.SSAConverter
 import latte.topdeffetcher.TopDefFetchingVisitor
 import latte.typecheck.TypecheckingVisitor
 import org.antlr.v4.runtime.CharStreams
@@ -42,7 +44,11 @@ fun main(args: Array<String>) {
         val returnChecker = ReturnCheckerVisitor()
         returnChecker.visitStartProgram(tree)
 
+        val converter = SSAConverter(tree.result as Prog, definitions)
+        val ssa = converter.convert()
+
         System.err.println("OK")
+        ssa.print()
         exitProcess(0)
     } catch (e: LatteException) {
         System.err.println("ERROR")
