@@ -3,6 +3,7 @@ package latte.ssaconverter
 import latte.Absyn.*
 import latte.common.LatteDefinitions
 import latte.ssaconverter.ssa.*
+import latte.ssaconverter.ssa.AddOp
 import latte.typecheck.unexpectedErrorExit
 
 class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
@@ -82,30 +83,44 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
 
     private fun visitBlock(block: Blk): SSABlock {
         val ssaBlock = SSABlock()
+        currEnv.add(mutableMapOf())
         for (stmt in block.liststmt_) {
             visitStmt(stmt, ssaBlock)
         }
+        currEnv.removeAt(currEnv.size - 1)
 
         return ssaBlock
     }
 
     private fun visitStmt(stmt: Stmt, block: SSABlock) {
         when(stmt) {
-            is ArrayAss -> TODO("extension: array ass")
             is Ass -> TODO("ass")
-            is BStmt -> TODO("bstmt")
-            is ClassAss -> TODO("extension: class ass")
+            is BStmt -> {
+                if (stmt.block_ is Blk) {
+                    currEnv.add(mutableMapOf())
+                    for (s in stmt.block_.liststmt_) {
+                        visitStmt(s, block)
+                    }
+                    currEnv.removeAt(currEnv.size - 1)
+                } else {
+                    TODO("unknown Block implementation")
+                }
+            }
             is Cond -> TODO("if")
             is CondElse -> TODO("if else")
             is Decl -> TODO("decl")
-            is Decr -> TODO("decr")
+            is Decr -> block.addOp(SubOp(getNextRegistry(), RegistryArg(getVarRegistry(stmt.ident_)), IntArg(1)))
             is Empty -> {}
-            is Incr -> TODO("incr")
+            is Incr -> block.addOp(AddOp(getNextRegistry(), RegistryArg(getVarRegistry(stmt.ident_)), IntArg(1)))
             is Ret -> TODO("return")
             is SExp -> TODO("stmt expr")
-            is VRet -> TODO("void ret")
+            is VRet -> block.addOp(ReturnVoidOp())
             is While -> TODO("while")
+
+            is ArrayAss -> TODO("extension: array ass")
+            is ClassAss -> TODO("extension: class ass")
             is For -> TODO("extension: for")
+            else -> TODO("unknown stmt")
         }
     }
 }
