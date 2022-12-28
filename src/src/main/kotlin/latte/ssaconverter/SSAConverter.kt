@@ -113,7 +113,7 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
             is Empty -> {}
             is Incr -> block.addOp(AddOp(getNextRegistry(), RegistryArg(getVarRegistry(stmt.ident_)), IntArg(1)))
             is Ret -> TODO("return")
-            is SExp -> TODO("stmt expr")
+            is SExp -> visitExpr(stmt.expr_, block)
             is VRet -> block.addOp(ReturnVoidOp())
             is While -> TODO("while")
 
@@ -121,6 +121,43 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
             is ClassAss -> TODO("extension: class ass")
             is For -> TODO("extension: for")
             else -> TODO("unknown stmt")
+        }
+    }
+
+    private fun visitExpr(expr: Expr, block: SSABlock): OpArgument {
+        return when (expr) {
+            is EOr -> TODO("or")
+            is EAnd -> TODO("and")
+            is ERel -> TODO("rel")
+            is EAdd -> TODO("add")
+            is EMul -> TODO("mul")
+            is Not -> {
+                val res = visitExpr(expr.expr_, block)
+                val reg = getNextRegistry()
+                block.addOp(NotOp(reg, res))
+                return RegistryArg(reg)
+            }
+            is Neg -> {
+                val res = visitExpr(expr.expr_, block)
+                val reg = getNextRegistry()
+                block.addOp(NegOp(reg, res))
+                return RegistryArg(reg)
+            }
+            is EApp -> TODO("app")
+            is ELitFalse -> BoolArg(false)
+            is ELitTrue -> BoolArg(true)
+            is ELitInt -> IntArg(expr.integer_)
+            is EString -> TODO("lit string")
+            is EVar -> TODO("var")
+
+            is ENull -> TODO("extension: lit null")
+            is ENewArr -> TODO("extension: lit new arr")
+            is ENewObj -> TODO("extension: lit new obj")
+            is EArray -> TODO("extension: array")
+            is EClassCall -> TODO("extension: class call")
+            is EClassVal -> TODO("extension: class val")
+            is ECast -> TODO("extension: cast")
+            else -> TODO("unknown expr")
         }
     }
 }
