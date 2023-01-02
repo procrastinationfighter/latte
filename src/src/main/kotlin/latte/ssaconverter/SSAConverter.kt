@@ -126,11 +126,67 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
 
     private fun visitExpr(expr: Expr, block: SSABlock): OpArgument {
         return when (expr) {
-            is EOr -> TODO("or")
-            is EAnd -> TODO("and")
-            is ERel -> TODO("rel")
-            is EAdd -> TODO("add")
-            is EMul -> TODO("mul")
+            is EOr -> {
+                val left = visitExpr(expr.expr_1, block)
+                val right = visitExpr(expr.expr_2, block)
+                val reg = getNextRegistry()
+                block.addOp(OrOp(reg, left, right))
+
+                return RegistryArg(reg)
+            }
+            is EAnd -> {
+                val left = visitExpr(expr.expr_1, block)
+                val right = visitExpr(expr.expr_2, block)
+                val reg = getNextRegistry()
+                block.addOp(AndOp(reg, left, right))
+
+                return RegistryArg(reg)
+            }
+            is ERel -> {
+                // TODO: comparing strings and bools might require separate quadruple op
+                val left = visitExpr(expr.expr_1, block)
+                val right = visitExpr(expr.expr_2, block)
+                val reg = getNextRegistry()
+                block.addOp(RelationOp(reg, left, right, expr.relop_))
+
+                return RegistryArg(reg)
+            }
+            is EAdd -> {
+                val left = visitExpr(expr.expr_1, block)
+                val right = visitExpr(expr.expr_2, block)
+                val reg = getNextRegistry()
+
+                when (left) {
+                    is RegistryArg -> {
+                        val type = currTypes[left.number]
+                        if (type == null) {
+                            TODO("registry ${left.number} has no type assigned")
+                        } else if (type is latte.Absyn.Int) {
+                            block.addOp(AddOp(reg, left, right))
+                        } else if (type is Str) {
+                            block.addOp(AddStringOp(reg, left, right))
+                        }
+                    }
+                    is IntArg -> {
+                        block.addOp(AddOp(reg, left, right))
+                    }
+                    is StringArg -> {
+                        block.addOp(AddStringOp(reg, left, right))
+                    }
+                    else -> TODO("not supported add quadruple op")
+                }
+                block.addOp(MultiplicationOp(reg, left, right))
+
+                return RegistryArg(reg)
+            }
+            is EMul -> {
+                val left = visitExpr(expr.expr_1, block)
+                val right = visitExpr(expr.expr_2, block)
+                val reg = getNextRegistry()
+                block.addOp(MultiplicationOp(reg, left, right))
+
+                return RegistryArg(reg)
+            }
             is Not -> {
                 val res = visitExpr(expr.expr_, block)
                 val reg = getNextRegistry()
@@ -143,12 +199,18 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
                 block.addOp(NegOp(reg, res))
                 return RegistryArg(reg)
             }
-            is EApp -> TODO("app")
+            is EApp -> {
+                val args = visitListExpr(expr.listexpr_, block)
+                val reg = getNextRegistry()
+                val type = definitions.functions[expr.ident_]!!.returnType
+                block.addOp(AppOp(reg, type, args))
+                return RegistryArg(reg)
+            }
             is ELitFalse -> BoolArg(false)
             is ELitTrue -> BoolArg(true)
             is ELitInt -> IntArg(expr.integer_)
-            is EString -> TODO("lit string")
-            is EVar -> TODO("var")
+            is EString -> StringArg(expr.string_)
+            is EVar -> RegistryArg(getVarRegistry(expr.ident_))
 
             is ENull -> TODO("extension: lit null")
             is ENewArr -> TODO("extension: lit new arr")
@@ -159,5 +221,9 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
             is ECast -> TODO("extension: cast")
             else -> TODO("unknown expr")
         }
+    }
+
+    private fun visitListExpr(listexpr_: ListExpr, block: SSABlock): List<OpArgument> {
+        return listexpr_.map { expr -> visitExpr(expr, block) }
     }
 }
