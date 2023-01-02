@@ -34,10 +34,15 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
         return -1
     }
 
-    private fun setVar(name: String, type: Type) {
+    private fun isVarFromThisBlock(name: String): Boolean {
+        return currEnv[currEnv.size - 1][name] != null
+    }
+
+    private fun setVar(name: String, type: Type): Int {
         val reg = getNextRegistry()
         currEnv[currEnv.size - 1][name] = reg
         currTypes[reg] = type
+        return reg
     }
 
     private fun prepFun() {
@@ -95,7 +100,13 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
     private fun visitStmt(stmt: Stmt, block: SSABlock) {
         when(stmt) {
             is Ass -> {
-                TODO("assign statement - wait for implementing phi")
+                val res = visitExpr(stmt.expr_, block)
+                val reg = getNextRegistry()
+                block.addOp(AssignOp(reg, res))
+
+                if (isVarFromThisBlock(stmt.ident_)) {
+                    block.addModifiedVar(stmt.ident_, reg)
+                }
             }
             is BStmt -> {
                 if (stmt.block_ is Blk) {
@@ -110,15 +121,23 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
             }
             is Cond -> TODO("if")
             is CondElse -> TODO("if else")
-            is Decl -> TODO("decl")
+            is Decl -> visitListItem(stmt.type_, stmt.listitem_, block)
             is Decr -> {
-                block.addOp(AddOp(getNextRegistry(), RegistryArg(getVarRegistry(stmt.ident_)), IntArg(1), Minus()))
-                TODO("decr not implemented as reassign")
+                val reg = getNextRegistry()
+                block.addOp(AddOp(reg, RegistryArg(getVarRegistry(stmt.ident_)), IntArg(1), Minus()))
+
+                if (isVarFromThisBlock(stmt.ident_)) {
+                    block.addModifiedVar(stmt.ident_, reg)
+                }
             }
             is Empty -> {}
             is Incr -> {
-                block.addOp(AddOp(getNextRegistry(), RegistryArg(getVarRegistry(stmt.ident_)), IntArg(1), Plus()))
-                TODO("incr not implemented as reassign")
+                val reg = getNextRegistry()
+                block.addOp(AddOp(reg, RegistryArg(getVarRegistry(stmt.ident_)), IntArg(1), Plus()))
+
+                if (isVarFromThisBlock(stmt.ident_)) {
+                    block.addModifiedVar(stmt.ident_, reg)
+                }
             }
             is Ret -> {
                 val reg = visitExpr(stmt.expr_, block)
@@ -139,6 +158,32 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
             is ClassAss -> TODO("extension: class ass")
             is For -> TODO("extension: for")
             else -> TODO("unknown stmt")
+        }
+    }
+
+    private fun visitListItem(type: Type, listItem: ListItem, block: SSABlock) {
+        for (item in listItem) {
+            when (item) {
+                is Init -> {
+                    val reg = setVar(item.ident_, type)
+                    val expr = visitExpr(item.expr_, block)
+                    block.addOp(AssignOp(reg, expr))
+                }
+                is NoInit -> {
+                    val reg = setVar(item.ident_, type)
+                    block.addOp(AssignOp(reg, getTypeDefaultValue(type)))
+                }
+                else -> TODO("unknown item type")
+            }
+        }
+    }
+
+    private fun getTypeDefaultValue(type: Type): OpArgument {
+        return when (type) {
+            is latte.Absyn.Int -> IntArg(0)
+            is Str -> StringArg("")
+            is Bool -> BoolArg(false)
+            else -> TODO("default type not implemented for $type")
         }
     }
 

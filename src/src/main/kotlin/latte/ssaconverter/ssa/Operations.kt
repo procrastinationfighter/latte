@@ -25,6 +25,7 @@ abstract class UnaryOp(result: Int, val arg: OpArgument): RegistryOp(RegistryArg
 
 class NotOp(result: Int, arg: OpArgument): UnaryOp(result, arg)
 class NegOp(result: Int, arg: OpArgument): UnaryOp(result, arg)
+class AssignOp(result: Int, arg: OpArgument): UnaryOp(result, arg)
 
 abstract class BinaryOp(result: Int, left: OpArgument, right: OpArgument): RegistryOp(RegistryArg(result))
 
