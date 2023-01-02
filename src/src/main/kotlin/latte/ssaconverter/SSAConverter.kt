@@ -94,7 +94,9 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
 
     private fun visitStmt(stmt: Stmt, block: SSABlock) {
         when(stmt) {
-            is Ass -> TODO("ass")
+            is Ass -> {
+                TODO("assign statement - wait for implementing phi")
+            }
             is BStmt -> {
                 if (stmt.block_ is Blk) {
                     currEnv.add(mutableMapOf())
@@ -109,10 +111,26 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
             is Cond -> TODO("if")
             is CondElse -> TODO("if else")
             is Decl -> TODO("decl")
-            is Decr -> block.addOp(SubOp(getNextRegistry(), RegistryArg(getVarRegistry(stmt.ident_)), IntArg(1)))
+            is Decr -> {
+                block.addOp(AddOp(getNextRegistry(), RegistryArg(getVarRegistry(stmt.ident_)), IntArg(1), Minus()))
+                TODO("decr not implemented as reassign")
+            }
             is Empty -> {}
-            is Incr -> block.addOp(AddOp(getNextRegistry(), RegistryArg(getVarRegistry(stmt.ident_)), IntArg(1)))
-            is Ret -> TODO("return")
+            is Incr -> {
+                block.addOp(AddOp(getNextRegistry(), RegistryArg(getVarRegistry(stmt.ident_)), IntArg(1), Plus()))
+                TODO("incr not implemented as reassign")
+            }
+            is Ret -> {
+                val reg = visitExpr(stmt.expr_, block)
+                val type = when (reg) {
+                    is IntArg -> Int()
+                    is StringArg -> Str()
+                    is BoolArg -> Bool()
+                    is RegistryArg -> currTypes[reg.number]!!
+                    else -> TODO("unknown type in return")
+                }
+                block.addOp(ReturnOp(type, reg))
+            }
             is SExp -> visitExpr(stmt.expr_, block)
             is VRet -> block.addOp(ReturnVoidOp())
             is While -> TODO("while")
@@ -162,20 +180,19 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
                         if (type == null) {
                             TODO("registry ${left.number} has no type assigned")
                         } else if (type is latte.Absyn.Int) {
-                            block.addOp(AddOp(reg, left, right))
+                            block.addOp(AddOp(reg, left, right, expr.addop_))
                         } else if (type is Str) {
                             block.addOp(AddStringOp(reg, left, right))
                         }
                     }
                     is IntArg -> {
-                        block.addOp(AddOp(reg, left, right))
+                        block.addOp(AddOp(reg, left, right, expr.addop_))
                     }
                     is StringArg -> {
                         block.addOp(AddStringOp(reg, left, right))
                     }
                     else -> TODO("not supported add quadruple op")
                 }
-                block.addOp(MultiplicationOp(reg, left, right))
 
                 return RegistryArg(reg)
             }
@@ -183,7 +200,7 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
                 val left = visitExpr(expr.expr_1, block)
                 val right = visitExpr(expr.expr_2, block)
                 val reg = getNextRegistry()
-                block.addOp(MultiplicationOp(reg, left, right))
+                block.addOp(MultiplicationOp(reg, left, right, expr.mulop_))
 
                 return RegistryArg(reg)
             }

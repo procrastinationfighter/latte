@@ -1,5 +1,7 @@
 package latte.ssaconverter.ssa
 
+import latte.Absyn.AddOp
+import latte.Absyn.MulOp
 import latte.Absyn.RelOp
 import latte.Absyn.Type
 import javax.swing.text.StyledEditorKit.BoldAction
@@ -26,13 +28,13 @@ class NegOp(result: Int, arg: OpArgument): UnaryOp(result, arg)
 
 abstract class BinaryOp(result: Int, left: OpArgument, right: OpArgument): RegistryOp(RegistryArg(result))
 
-class AddOp(result: Int, left: OpArgument, right: OpArgument): BinaryOp(result, left, right)
-class SubOp(result: Int, left: OpArgument, right: OpArgument): BinaryOp(result, left, right)
+class AddOp(result: Int, left: OpArgument, right: OpArgument, addOp: AddOp): BinaryOp(result, left, right)
 class OrOp(result: Int, left: OpArgument, right: OpArgument): BinaryOp(result, left, right)
 class AndOp(result: Int, left: OpArgument, right: OpArgument): BinaryOp(result, left, right)
-class MultiplicationOp(result: Int, left: OpArgument, right: OpArgument): BinaryOp(result, left, right)
+class MultiplicationOp(result: Int, left: OpArgument, right: OpArgument, mulOp: MulOp): BinaryOp(result, left, right)
 class AddStringOp(result: Int, left: OpArgument, right: OpArgument): BinaryOp(result, left, right)
 
 class RelationOp(result: Int, left: OpArgument, right: OpArgument, val relOp: RelOp): BinaryOp(result, left, right)
 
 class ReturnVoidOp: Op()
+class ReturnOp(type: Type, arg: OpArgument): Op()
