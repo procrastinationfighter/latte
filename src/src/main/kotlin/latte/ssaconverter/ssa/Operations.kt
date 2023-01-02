@@ -39,3 +39,5 @@ class RelationOp(result: Int, left: OpArgument, right: OpArgument, val relOp: Re
 
 class ReturnVoidOp: Op()
 class ReturnOp(type: Type, arg: OpArgument): Op()
+
+class IfOp(cond: OpArgument, label1: String, label2: String): Op()

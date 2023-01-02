@@ -1,10 +1,11 @@
 package latte.ssaconverter.ssa
 
-class SSABlock {
+class SSABlock(val label: String, phi: List<Phi>) {
     var ops = mutableListOf<Op>()
     var prev = mutableListOf<SSABlock>()
     var next = mutableListOf<SSABlock>()
     var modifiedVars = mutableMapOf<String, Int>()
+    var endEnv: List<Map<String, Int>>? = null
 
     fun addOp(op: Op) {
         ops.add(op)

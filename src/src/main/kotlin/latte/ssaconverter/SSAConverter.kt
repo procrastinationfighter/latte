@@ -6,11 +6,22 @@ import latte.ssaconverter.ssa.*
 import latte.ssaconverter.ssa.AddOp
 import latte.typecheck.unexpectedErrorExit
 
-class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
+class SSAConverter(var program: Prog, private val definitions: LatteDefinitions) {
     private var ssa = SSA()
     private var nextRegistry = 1
+    private var nextLabelNo = 1
     private var currEnv: MutableList<MutableMap<String, Int>> = mutableListOf()
     private var currTypes = mutableMapOf<Int, Type>()
+
+    private fun copyCurrEnv(): List<Map<String, Int>> {
+        // TODO: Check if the list is deep copied
+        return currEnv.map { it.toMap() }
+    }
+    private fun getNextLabel(): String {
+        val label = "L$nextLabelNo"
+        nextLabelNo++
+        return label
+    }
 
     private fun resetRegistry() {
         nextRegistry = 1
@@ -87,17 +98,18 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
     }
 
     private fun visitBlock(block: Blk): SSABlock {
-        val ssaBlock = SSABlock()
+        val ssaBlock = SSABlock(getNextLabel(), emptyList())
+        var b = ssaBlock
         currEnv.add(mutableMapOf())
         for (stmt in block.liststmt_) {
-            visitStmt(stmt, ssaBlock)
+            b = visitStmt(stmt, b)
         }
         currEnv.removeAt(currEnv.size - 1)
 
         return ssaBlock
     }
 
-    private fun visitStmt(stmt: Stmt, block: SSABlock) {
+    private fun visitStmt(stmt: Stmt, block: SSABlock): SSABlock {
         when(stmt) {
             is Ass -> {
                 val res = visitExpr(stmt.expr_, block)
@@ -119,7 +131,22 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
                     TODO("unknown Block implementation")
                 }
             }
-            is Cond -> TODO("if")
+            is Cond -> {
+                val cond = visitExpr(stmt.expr_, block)
+                val ifLabel = getNextLabel()
+                val continueLabel = getNextLabel()
+                block.endEnv = copyCurrEnv()
+
+                val ifBlock = SSABlock(ifLabel, emptyList())
+                visitStmt(stmt.stmt_, ifBlock)
+                ifBlock.endEnv = copyCurrEnv()
+
+                val phi = getPhi(block, ifBlock)
+                val continueBlock = SSABlock(continueLabel, phi)
+                block.addOp(IfOp(cond, ifLabel, continueLabel))
+
+                return continueBlock
+            }
             is CondElse -> TODO("if else")
             is Decl -> visitListItem(stmt.type_, stmt.listitem_, block)
             is Decr -> {
@@ -159,7 +186,36 @@ class SSAConverter(var program: Prog, val definitions: LatteDefinitions) {
             is For -> TODO("extension: for")
             else -> TODO("unknown stmt")
         }
+
+        return block
     }
+
+    private fun getPhi(first: SSABlock, second: SSABlock): List<Phi> {
+        val l = mutableListOf<Phi>()
+
+        assert(first.endEnv != null)
+        assert(second.endEnv != null)
+        assert(first.endEnv!!.size == second.endEnv!!.size)
+
+        // In Latte, each block can have up to 2 predecessors.
+        // Just iterate which values don't match in both of them.
+        for (i in 0 until first.endEnv!!.size) {
+            val firstEnv = first.endEnv!![i]
+            val secondEnv = second.endEnv!![i]
+            for (pair in first.endEnv!![i]) {
+                if (firstEnv[pair.key] != secondEnv[pair.key]) {
+                    val reg = getNextRegistry()
+                    l.add(Phi(pair.key, reg, mapOf(
+                                first.label to RegistryArg(firstEnv[pair.key]!!),
+                                second.label to RegistryArg(secondEnv[pair.key]!!),
+                        )))
+                }
+            }
+        }
+
+        return l
+    }
+
 
     private fun visitListItem(type: Type, listItem: ListItem, block: SSABlock) {
         for (item in listItem) {
