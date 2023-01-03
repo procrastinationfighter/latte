@@ -147,7 +147,28 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
 
                 return continueBlock
             }
-            is CondElse -> TODO("if else")
+            is CondElse -> {
+                val cond = visitExpr(stmt.expr_, block)
+                val ifLabel = getNextLabel()
+                val elseLabel = getNextLabel()
+                val continueLabel = getNextLabel()
+                block.endEnv = copyCurrEnv()
+
+                val ifBlock = SSABlock(ifLabel, emptyList())
+                visitStmt(stmt.stmt_1, ifBlock)
+                ifBlock.endEnv = copyCurrEnv()
+                currEnv = block.endEnv!!.map { it.toMutableMap() } as MutableList<MutableMap<String, Int>>
+
+                val elseBlock = SSABlock(elseLabel, emptyList())
+                visitStmt(stmt.stmt_2, ifBlock)
+                ifBlock.endEnv = copyCurrEnv()
+
+                val phi = getPhi(ifBlock, elseBlock)
+                val continueBlock = SSABlock(continueLabel, phi)
+                block.addOp(IfOp(cond, ifLabel, elseLabel))
+
+                return continueBlock
+            }
             is Decl -> visitListItem(stmt.type_, stmt.listitem_, block)
             is Decr -> {
                 val reg = getNextRegistry()
