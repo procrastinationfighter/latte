@@ -1,8 +1,9 @@
 package latte.ssaconverter.ssa
 
+import latte.ssaconverter.SSAConverter
 import java.util.Queue
 
-class SSABlock(val label: String, phi: List<Phi>) {
+class SSABlock(val label: String, phi: List<Phi>, conv: SSAConverter) {
     var ops = mutableListOf<Op>()
     var prev = mutableListOf<SSABlock>()
     var next = mutableListOf<SSABlock>()
@@ -12,6 +13,7 @@ class SSABlock(val label: String, phi: List<Phi>) {
     init {
         for (p in phi) {
             addOp(PhiOp(p))
+            conv.changeVar(p.variable, p.registry)
         }
     }
 
