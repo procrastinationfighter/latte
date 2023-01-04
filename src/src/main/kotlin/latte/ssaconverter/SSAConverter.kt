@@ -5,6 +5,7 @@ import latte.common.LatteDefinitions
 import latte.ssaconverter.ssa.*
 import latte.ssaconverter.ssa.AddOp
 import latte.typecheck.unexpectedErrorExit
+import kotlin.system.exitProcess
 
 class SSAConverter(var program: Prog, private val definitions: LatteDefinitions) {
     private var ssa = SSA()
@@ -21,6 +22,10 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         val label = "L$nextLabelNo"
         nextLabelNo++
         return label
+    }
+
+    private fun resetLabel() {
+        nextLabelNo = 1
     }
 
     private fun resetRegistry() {
@@ -60,8 +65,22 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         return reg
     }
 
+    private fun changeVar(name: String, reg: Int) {
+        for (env in currEnv.reversed()) {
+            val r = env[name]
+            if (r != null) {
+                currTypes[reg] = currTypes[r]!!
+                env[name] = reg
+                return
+            }
+        }
+
+        // Technically, shouldn't happen: type checker already checked that
+    }
+
     private fun prepFun() {
         resetRegistry()
+        resetLabel()
         currEnv.clear()
         currEnv.add(mutableMapOf())
         currTypes.clear()
@@ -120,6 +139,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 val res = visitExpr(stmt.expr_, block)
                 val reg = getNextRegistry()
                 block.addOp(AssignOp(reg, res))
+                changeVar(stmt.ident_, reg)
 
                 if (isVarFromThisBlock(stmt.ident_)) {
                     block.addModifiedVar(stmt.ident_, reg)
@@ -174,7 +194,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 val elseBlock = SSABlock(elseLabel, emptyList())
                 visitStmt(stmt.stmt_2, ifBlock)
                 elseBlock.addOp(JumpOp(continueLabel))
-                ifBlock.endEnv = copyCurrEnv()
+                elseBlock.endEnv = copyCurrEnv()
 
                 val phi = getPhi(ifBlock, elseBlock)
                 val continueBlock = SSABlock(continueLabel, phi)
@@ -240,16 +260,18 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         // go 1 -> 3 -> 2 (calculate phis) -> 3 (calculate phis) -> 4 (calculate phis)
         // potential optimization: traverse firstly 2 and 3 with alternative versions of the functions
 
-        // Visit 3
-        block.endEnv = copyCurrEnv()
-        val dummyBody = SSABlock("", emptyList())
-        val dummyFinishBody = visitStmt(stmt.stmt_, dummyBody)
-        restoreEnv(block)
-
         // Labels
         val condLabel = getNextLabel()
         val bodyLabel = getNextLabel()
         val continueLabel = getNextLabel()
+
+        // Visit 3
+        block.endEnv = copyCurrEnv()
+        val tempReg = nextRegistry
+        val dummyBody = SSABlock(bodyLabel, emptyList())
+        val dummyFinishBody = visitStmt(stmt.stmt_, dummyBody)
+        dummyFinishBody.endEnv = copyCurrEnv()
+        restoreEnv(block)
 
         // Condition block
         val condPhi = getPhi(block, dummyFinishBody)
@@ -260,11 +282,15 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         block.addNext(condBlock)
 
         // Body block
+        // Restore registers so that this time it generates the same registers as for the first time
+        val tempReg2 = nextRegistry
+        nextRegistry = tempReg
         val bodyBlock = SSABlock(bodyLabel, emptyList())
         val finishBodyBlock = visitStmt(stmt.stmt_, bodyBlock)
         finishBodyBlock.addOp(JumpOp(condLabel))
         finishBodyBlock.addNext(condBlock)
-        bodyBlock.endEnv = copyCurrEnv()
+        finishBodyBlock.endEnv = copyCurrEnv()
+        nextRegistry = tempReg2
 
         // Continue block
         restoreEnv(condBlock)
@@ -279,8 +305,14 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
     private fun getPhi(first: SSABlock, second: SSABlock): List<Phi> {
         val l = mutableListOf<Phi>()
 
-        assert(first.endEnv != null)
-        assert(second.endEnv != null)
+        if (first.endEnv == null) {
+            println("first in phi")
+            exitProcess(1)
+        }
+        if (second.endEnv == null) {
+            println("second in phi")
+            exitProcess(1)
+        }
         assert(first.endEnv!!.size == second.endEnv!!.size)
 
         // In Latte, each block can have up to 2 predecessors.

@@ -48,7 +48,7 @@ abstract class RegistryOp(val result: RegistryArg): Op() {
 
 class PhiOp(val phi: Phi): RegistryOp(RegistryArg(phi.registry)) {
     override fun printOp(): String {
-        return phi.values.map { "${it.key}: ${it.value.print()}" }.joinToString(prefix = "[", separator = ", ", postfix = "]")
+        return phi.values.map { "${it.key}: ${it.value.print()}" }.joinToString(prefix = "phi[", separator = ", ", postfix = "]")
     }
 }
 
