@@ -148,10 +148,12 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             is BStmt -> {
                 if (stmt.block_ is Blk) {
                     currEnv.add(mutableMapOf())
+                    var b = block
                     for (s in stmt.block_.liststmt_) {
-                        visitStmt(s, block)
+                        b = visitStmt(s, b)
                     }
                     currEnv.removeAt(currEnv.size - 1)
+                    return b
                 } else {
                     TODO("unknown Block implementation")
                 }

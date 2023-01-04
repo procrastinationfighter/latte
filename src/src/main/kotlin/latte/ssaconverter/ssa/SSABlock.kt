@@ -4,6 +4,8 @@ import latte.ssaconverter.SSAConverter
 import java.util.Queue
 
 class SSABlock(val label: String, phi: List<Phi>, conv: SSAConverter) {
+    var returned = false
+    var ended = false
     var ops = mutableListOf<Op>()
     var prev = mutableListOf<SSABlock>()
     var next = mutableListOf<SSABlock>()
@@ -18,6 +20,15 @@ class SSABlock(val label: String, phi: List<Phi>, conv: SSAConverter) {
     }
 
     fun addOp(op: Op) {
+        if (returned || ended) {
+            return
+        }
+
+        if (op is ReturnOp || op is ReturnVoidOp) {
+            returned = true
+        } else if (op is JumpOp || op is IfOp) {
+            ended = true
+        }
         ops.add(op)
     }
 
@@ -26,7 +37,9 @@ class SSABlock(val label: String, phi: List<Phi>, conv: SSAConverter) {
     }
 
     fun addNext(block: SSABlock) {
-        next.add(block)
+        if (!returned) {
+            next.add(block)
+        }
     }
 
     fun addModifiedVar(name: String, reg: Int) {
