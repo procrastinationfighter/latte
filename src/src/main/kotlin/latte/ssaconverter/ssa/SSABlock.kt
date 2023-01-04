@@ -1,5 +1,7 @@
 package latte.ssaconverter.ssa
 
+import java.util.Queue
+
 class SSABlock(val label: String, phi: List<Phi>) {
     var ops = mutableListOf<Op>()
     var prev = mutableListOf<SSABlock>()
@@ -27,5 +29,21 @@ class SSABlock(val label: String, phi: List<Phi>) {
 
     fun addModifiedVar(name: String, reg: Int) {
         modifiedVars[name] = reg
+    }
+
+    fun traversePrint(visited: MutableSet<String>, queue: Queue<SSABlock>) {
+        val nextBlocks = next.joinToString(separator = ", ") { it.label }
+        println("BLOCK $label, FOLLOWED BY $nextBlocks")
+        for (op in ops) {
+            op.print()
+        }
+        println("END BLOCK\n")
+
+        for (n in next) {
+            if (!visited.contains(n.label)) {
+                visited.add(n.label)
+                queue.add(n)
+            }
+        }
     }
 }
