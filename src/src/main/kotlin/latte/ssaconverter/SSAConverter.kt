@@ -406,8 +406,10 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                             TODO("registry ${left.number} has no type assigned")
                         } else if (type is latte.Absyn.Int) {
                             block.addOp(AddOp(reg, left, right, expr.addop_))
+                            currTypes[reg] = Int()
                         } else if (type is Str) {
                             block.addOp(AddStringOp(reg, left, right))
+                            currTypes[reg] = Str()
                         }
                     }
                     is IntArg -> {
