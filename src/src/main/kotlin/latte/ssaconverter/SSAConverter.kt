@@ -407,7 +407,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 val args = visitListExpr(expr.listexpr_, block)
                 val reg = getNextRegistry()
                 val type = definitions.functions[expr.ident_]!!.returnType
-                block.addOp(AppOp(reg, type, args))
+                block.addOp(AppOp(reg, expr.ident_, type, args))
                 return RegistryArg(reg)
             }
             is ELitFalse -> BoolArg(false)
