@@ -144,11 +144,17 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
 
                 val ifBlock = SSABlock(ifLabel, emptyList())
                 visitStmt(stmt.stmt_, ifBlock)
+                ifBlock.addOp(JumpOp(continueLabel))
                 ifBlock.endEnv = copyCurrEnv()
 
                 val phi = getPhi(block, ifBlock)
                 val continueBlock = SSABlock(continueLabel, phi)
                 block.addOp(IfOp(cond, ifLabel, continueLabel))
+
+                // Fix block graph
+                block.addNext(ifBlock)
+                block.addNext(continueBlock)
+                ifBlock.addNext(continueBlock)
 
                 return continueBlock
             }
@@ -161,16 +167,24 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
 
                 val ifBlock = SSABlock(ifLabel, emptyList())
                 visitStmt(stmt.stmt_1, ifBlock)
+                ifBlock.addOp(JumpOp(continueLabel))
                 ifBlock.endEnv = copyCurrEnv()
                 restoreEnv(block)
 
                 val elseBlock = SSABlock(elseLabel, emptyList())
                 visitStmt(stmt.stmt_2, ifBlock)
+                elseBlock.addOp(JumpOp(continueLabel))
                 ifBlock.endEnv = copyCurrEnv()
 
                 val phi = getPhi(ifBlock, elseBlock)
                 val continueBlock = SSABlock(continueLabel, phi)
                 block.addOp(IfOp(cond, ifLabel, elseLabel))
+
+                // Fix block graph
+                block.addNext(ifBlock)
+                block.addNext(elseBlock)
+                ifBlock.addNext(continueBlock)
+                elseBlock.addNext(continueBlock)
 
                 return continueBlock
             }
