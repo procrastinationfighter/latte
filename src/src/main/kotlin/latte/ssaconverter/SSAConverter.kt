@@ -45,6 +45,10 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         return -1
     }
 
+    private fun restoreEnv(block: SSABlock) {
+        currEnv = block.endEnv!!.map { it.toMutableMap() } as MutableList<MutableMap<String, Int>>
+    }
+
     private fun isVarFromThisBlock(name: String): Boolean {
         return currEnv[currEnv.size - 1][name] != null
     }
@@ -112,6 +116,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
     private fun visitStmt(stmt: Stmt, block: SSABlock): SSABlock {
         when(stmt) {
             is Ass -> {
+                // TODO: avoid assigning something to register directly
                 val res = visitExpr(stmt.expr_, block)
                 val reg = getNextRegistry()
                 block.addOp(AssignOp(reg, res))
@@ -157,7 +162,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 val ifBlock = SSABlock(ifLabel, emptyList())
                 visitStmt(stmt.stmt_1, ifBlock)
                 ifBlock.endEnv = copyCurrEnv()
-                currEnv = block.endEnv!!.map { it.toMutableMap() } as MutableList<MutableMap<String, Int>>
+                restoreEnv(block)
 
                 val elseBlock = SSABlock(elseLabel, emptyList())
                 visitStmt(stmt.stmt_2, ifBlock)
@@ -200,7 +205,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             }
             is SExp -> visitExpr(stmt.expr_, block)
             is VRet -> block.addOp(ReturnVoidOp())
-            is While -> TODO("while")
+            is While -> return visitWhile(stmt, block)
 
             is ArrayAss -> TODO("extension: array ass")
             is ClassAss -> TODO("extension: class ass")
@@ -209,6 +214,52 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         }
 
         return block
+    }
+
+    private fun visitWhile(stmt: While, block: SSABlock): SSABlock {
+        // 1. initial block -> 2
+        // 2. condition block -> 3 | 4
+        // 3. loop body block -> 2
+        // 4. continue block
+
+        // Most "brutal" way:
+        // go 1 -> 3 -> 2 (calculate phis) -> 3 (calculate phis) -> 4 (calculate phis)
+        // potential optimization: traverse firstly 2 and 3 with alternative versions of the functions
+
+        // Visit 3
+        block.endEnv = copyCurrEnv()
+        val dummyBody = SSABlock("", emptyList())
+        val dummyFinishBody = visitStmt(stmt.stmt_, dummyBody)
+        restoreEnv(block)
+
+        // Labels
+        val condLabel = getNextLabel()
+        val bodyLabel = getNextLabel()
+        val continueLabel = getNextLabel()
+
+        // Condition block
+        val condPhi = getPhi(block, dummyFinishBody)
+        val condBlock = SSABlock(condLabel, condPhi)
+        val reg = visitExpr(stmt.expr_, condBlock)
+        condBlock.addOp(IfOp(reg, bodyLabel, continueLabel))
+        condBlock.endEnv = copyCurrEnv()
+        block.addNext(condBlock)
+
+        // Body block
+        val bodyBlock = SSABlock(bodyLabel, emptyList())
+        val finishBodyBlock = visitStmt(stmt.stmt_, bodyBlock)
+        finishBodyBlock.addOp(JumpOp(condLabel))
+        finishBodyBlock.addNext(condBlock)
+        bodyBlock.endEnv = copyCurrEnv()
+
+        // Continue block
+        restoreEnv(condBlock)
+        val continueBlock = SSABlock(continueLabel, emptyList())
+
+        condBlock.addNext(continueBlock)
+        condBlock.addNext(bodyBlock)
+
+        return continueBlock
     }
 
     private fun getPhi(first: SSABlock, second: SSABlock): List<Phi> {
