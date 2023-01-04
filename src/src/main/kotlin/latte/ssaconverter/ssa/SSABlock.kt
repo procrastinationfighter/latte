@@ -7,6 +7,12 @@ class SSABlock(val label: String, phi: List<Phi>) {
     var modifiedVars = mutableMapOf<String, Int>()
     var endEnv: List<Map<String, Int>>? = null
 
+    init {
+        for (p in phi) {
+            addOp(PhiOp(p))
+        }
+    }
+
     fun addOp(op: Op) {
         ops.add(op)
     }
