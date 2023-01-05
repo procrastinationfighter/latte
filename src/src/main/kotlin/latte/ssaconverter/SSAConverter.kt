@@ -400,11 +400,15 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 return RegistryArg(reg)
             }
             is ERel -> {
-                // TODO: comparing strings and bools might require separate quadruple op
                 val left = visitExpr(expr.expr_1, block)
                 val right = visitExpr(expr.expr_2, block)
                 val reg = getNextRegistry()
-                block.addOp(RelationOp(reg, left, right, expr.relop_))
+                val t = argToType(left)
+                if (t is Str) {
+                    block.addOp(StringRelationOp(reg, left, right, expr.relop_))
+                } else {
+                    block.addOp(RelationOp(reg, left, right, expr.relop_))
+                }
                 currTypes[reg] = Bool()
 
                 return RegistryArg(reg)

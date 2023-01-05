@@ -105,9 +105,16 @@ class AddStringOp(result: Int, val left: OpArgument, val right: OpArgument): Bin
     }
 }
 
+// Bools are represented as i1, so they can be compared like ints, but strings need separate ops.
 class RelationOp(result: Int, val left: OpArgument, val right: OpArgument, val relOp: RelOp): BinaryOp(result, left, right) {
     override fun printOp(): String {
         return "${left.print()} $relOp ${right.print()}"
+    }
+}
+
+class StringRelationOp(result: Int, val left: OpArgument, val right: OpArgument, val relOp: RelOp): BinaryOp(result, left, right) {
+    override fun printOp(): String {
+        return "${left.print()} STRCMP $relOp ${right.print()}"
     }
 }
 
