@@ -11,10 +11,10 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
     private var ssa = SSA()
     private var nextRegistry = 1
     private var nextLabelNo = 1
-    private var currEnv: MutableList<MutableMap<String, Int>> = mutableListOf()
+    private var currEnv: MutableList<MutableMap<String, OpArgument>> = mutableListOf()
     private var currTypes = mutableMapOf<Int, Type>()
 
-    private fun copyCurrEnv(): List<Map<String, Int>> {
+    private fun copyCurrEnv(): List<Map<String, OpArgument>> {
         // TODO: Check if the list is deep copied
         return currEnv.map { it.toMap() }
     }
@@ -38,7 +38,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         return prev
     }
 
-    private fun getVarRegistry(name: String): Int {
+    private fun getVarValue(name: String): OpArgument {
         for (env in currEnv.reversed()) {
             val r = env[name]
             if (r != null) {
@@ -47,30 +47,43 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         }
 
         // Technically, shouldn't happen: type checker already checked that
-        return -1
+        return RegistryArg(-1)
     }
 
     private fun restoreEnv(block: SSABlock) {
-        currEnv = block.endEnv!!.map { it.toMutableMap() } as MutableList<MutableMap<String, Int>>
+        currEnv = block.endEnv!!.map { it.toMutableMap() } as MutableList<MutableMap<String, OpArgument>>
     }
 
     private fun isVarFromThisBlock(name: String): Boolean {
         return currEnv[currEnv.size - 1][name] != null
     }
 
-    private fun setVar(name: String, type: Type): Int {
-        val reg = getNextRegistry()
-        currEnv[currEnv.size - 1][name] = reg
-        currTypes[reg] = type
-        return reg
+    private fun setVar(name: String, type: Type, arg: OpArgument) {
+        currEnv[currEnv.size - 1][name] = arg
+
+        if (arg is RegistryArg) {
+            currTypes[arg.number] = type
+        }
     }
 
-    fun changeVar(name: String, reg: Int) {
+    private fun argToType(arg: OpArgument): Type {
+        return when (arg) {
+            is RegistryArg -> currTypes[arg.number]!!
+            is BoolArg -> Bool()
+            is IntArg -> Int()
+            is StringArg -> Str()
+            else -> TODO("argToType not implemented for $arg")
+        }
+    }
+
+    fun changeVar(name: String, arg: OpArgument) {
         for (env in currEnv.reversed()) {
             val r = env[name]
             if (r != null) {
-                currTypes[reg] = currTypes[r]!!
-                env[name] = reg
+                if (arg is RegistryArg) {
+                    currTypes[arg.number] = argToType(r)
+                }
+                env[name] = arg
                 return
             }
         }
@@ -116,7 +129,9 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
     private fun visitArgs(args: ListArg) {
         for (arg in args) {
             val a = arg as Ar
-            setVar(a.ident_, a.type_)
+            val reg = getNextRegistry()
+            currEnv[currEnv.size - 1][a.ident_] = RegistryArg(reg)
+            currTypes[reg] = a.type_
         }
     }
 
@@ -137,12 +152,10 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             is Ass -> {
                 // TODO: avoid assigning something to register directly
                 val res = visitExpr(stmt.expr_, block)
-                val reg = getNextRegistry()
-                block.addOp(AssignOp(reg, res))
-                changeVar(stmt.ident_, reg)
+                changeVar(stmt.ident_, res)
 
-                if (isVarFromThisBlock(stmt.ident_)) {
-                    block.addModifiedVar(stmt.ident_, reg)
+                if (!isVarFromThisBlock(stmt.ident_)) {
+                    block.addModifiedVar(stmt.ident_, res)
                 }
             }
             is BStmt -> {
@@ -213,21 +226,23 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             is Decl -> visitListItem(stmt.type_, stmt.listitem_, block)
             is Decr -> {
                 val reg = getNextRegistry()
-                block.addOp(AddOp(reg, RegistryArg(getVarRegistry(stmt.ident_)), IntArg(1), Minus()))
-                changeVar(stmt.ident_, reg)
+                val regArg = RegistryArg(reg)
+                block.addOp(AddOp(reg, getVarValue(stmt.ident_), IntArg(1), Minus()))
+                changeVar(stmt.ident_, regArg)
 
-                if (isVarFromThisBlock(stmt.ident_)) {
-                    block.addModifiedVar(stmt.ident_, reg)
+                if (!isVarFromThisBlock(stmt.ident_)) {
+                    block.addModifiedVar(stmt.ident_, regArg)
                 }
             }
             is Empty -> {}
             is Incr -> {
                 val reg = getNextRegistry()
-                block.addOp(AddOp(reg, RegistryArg(getVarRegistry(stmt.ident_)), IntArg(1), Plus()))
-                changeVar(stmt.ident_, reg)
+                val regArg = RegistryArg(reg)
+                block.addOp(AddOp(reg, getVarValue(stmt.ident_), IntArg(1), Plus()))
+                changeVar(stmt.ident_, regArg)
 
-                if (isVarFromThisBlock(stmt.ident_)) {
-                    block.addModifiedVar(stmt.ident_, reg)
+                if (!isVarFromThisBlock(stmt.ident_)) {
+                    block.addModifiedVar(stmt.ident_, regArg)
                 }
             }
             is Ret -> {
@@ -329,8 +344,8 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 if (firstEnv[pair.key] != secondEnv[pair.key]) {
                     val reg = getNextRegistry()
                     l.add(Phi(pair.key, reg, mapOf(
-                                first.label to RegistryArg(firstEnv[pair.key]!!),
-                                second.label to RegistryArg(secondEnv[pair.key]!!),
+                                first.label to firstEnv[pair.key]!!,
+                                second.label to secondEnv[pair.key]!!,
                         )))
                 }
             }
@@ -345,12 +360,10 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             when (item) {
                 is Init -> {
                     val expr = visitExpr(item.expr_, block)
-                    val reg = setVar(item.ident_, type)
-                    block.addOp(AssignOp(reg, expr))
+                    setVar(item.ident_, type, expr)
                 }
                 is NoInit -> {
-                    val reg = setVar(item.ident_, type)
-                    block.addOp(AssignOp(reg, getTypeDefaultValue(type)))
+                    setVar(item.ident_, type, getTypeDefaultValue(type))
                 }
                 else -> TODO("unknown item type")
             }
@@ -462,7 +475,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             is ELitTrue -> BoolArg(true)
             is ELitInt -> IntArg(expr.integer_)
             is EString -> StringArg(expr.string_)
-            is EVar -> RegistryArg(getVarRegistry(expr.ident_))
+            is EVar -> getVarValue(expr.ident_)
 
             is ENull -> TODO("extension: lit null")
             is ENewArr -> TODO("extension: lit new arr")

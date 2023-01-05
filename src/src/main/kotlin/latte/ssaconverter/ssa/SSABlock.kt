@@ -9,13 +9,13 @@ class SSABlock(val label: String, phi: List<Phi>, conv: SSAConverter) {
     var ops = mutableListOf<Op>()
     var prev = mutableListOf<SSABlock>()
     var next = mutableListOf<SSABlock>()
-    var modifiedVars = mutableMapOf<String, Int>()
-    var endEnv: List<Map<String, Int>>? = null
+    var modifiedVars = mutableMapOf<String, OpArgument>()
+    var endEnv: List<Map<String, OpArgument>>? = null
 
     init {
         for (p in phi) {
             addOp(PhiOp(p))
-            conv.changeVar(p.variable, p.registry)
+            conv.changeVar(p.variable, RegistryArg(p.registry))
         }
     }
 
@@ -42,8 +42,8 @@ class SSABlock(val label: String, phi: List<Phi>, conv: SSAConverter) {
         }
     }
 
-    fun addModifiedVar(name: String, reg: Int) {
-        modifiedVars[name] = reg
+    fun addModifiedVar(name: String, arg: OpArgument) {
+        modifiedVars[name] = arg
     }
 
     fun traversePrint(visited: MutableSet<String>, queue: Queue<SSABlock>) {
