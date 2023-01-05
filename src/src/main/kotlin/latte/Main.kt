@@ -2,6 +2,7 @@ package latte
 
 import latte.Absyn.Prog
 import latte.common.LatteException
+import latte.llvmconverter.LLVMConverter
 import latte.parse.ErrorListener
 import latte.returnchecker.ReturnCheckerVisitor
 import latte.ssaconverter.SSAConverter
@@ -44,11 +45,14 @@ fun main(args: Array<String>) {
         val returnChecker = ReturnCheckerVisitor()
         returnChecker.visitStartProgram(tree)
 
-        val converter = SSAConverter(tree.result as Prog, definitions)
-        val ssa = converter.convert()
+        val ssaConverter = SSAConverter(tree.result as Prog, definitions)
+        val ssa = ssaConverter.convert()
+
+        val llvmConverter = LLVMConverter(ssa)
+        val llvmCode = llvmConverter.convert()
 
         System.err.println("OK")
-        ssa.print()
+        println(llvmCode)
         exitProcess(0)
     } catch (e: LatteException) {
         System.err.println("ERROR")
