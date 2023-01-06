@@ -179,23 +179,23 @@ declare i32 @strcmp(i8* nocapture noundef, i8* nocapture noundef) local_unnamed_
 define dso_local i8* @addStr(i8* nocapture noundef readonly %0, i8* nocapture noundef readonly %1) local_unnamed_addr #4 {
   %3 = tail call i64 @strlen(i8* noundef nonnull dereferenceable(1) %0) #16
   %4 = tail call i64 @strlen(i8* noundef nonnull dereferenceable(1) %1) #16
-  %5 = add i64 %4, %3
-  %6 = tail call noalias i8* @malloc(i64 noundef %5) #15
-  %7 = icmp eq i8* %6, null
-  br i1 %7, label %8, label %12
+  %5 = add i64 %3, 1
+  %6 = add i64 %5, %4
+  %7 = tail call noalias i8* @malloc(i64 noundef %6) #15
+  %8 = icmp eq i8* %7, null
+  br i1 %8, label %9, label %13
 
-8:                                                ; preds = %2
-  %9 = tail call i32 @puts(i8* nonnull dereferenceable(1) getelementptr inbounds ([29 x i8], [29 x i8]* @str.9, i64 0, i64 0))
-  %10 = load %struct._IO_FILE*, %struct._IO_FILE** @stdout, align 8, !tbaa !5
-  %11 = tail call i32 @fflush(%struct._IO_FILE* noundef %10)
+9:                                                ; preds = %2
+  %10 = tail call i32 @puts(i8* nonnull dereferenceable(1) getelementptr inbounds ([29 x i8], [29 x i8]* @str.9, i64 0, i64 0))
+  %11 = load %struct._IO_FILE*, %struct._IO_FILE** @stdout, align 8, !tbaa !5
+  %12 = tail call i32 @fflush(%struct._IO_FILE* noundef %11)
   tail call void @exit(i32 noundef 1) #14
   unreachable
 
-12:                                               ; preds = %2
-  %13 = add i64 %3, 1
-  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* nonnull align 1 %6, i8* align 1 %0, i64 %13, i1 false)
-  %14 = tail call i8* @strcat(i8* noundef nonnull %6, i8* noundef nonnull dereferenceable(1) %1) #15
-  ret i8* %6
+13:                                               ; preds = %2
+  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* nonnull align 1 %7, i8* align 1 %0, i64 %5, i1 false)
+  %14 = tail call i8* @strcat(i8* noundef nonnull %7, i8* noundef nonnull dereferenceable(1) %1) #15
+  ret i8* %7
 }
 
 ; Function Attrs: argmemonly mustprogress nofree nounwind readonly willreturn
