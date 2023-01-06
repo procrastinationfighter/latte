@@ -1,11 +1,7 @@
 package latte.ssaconverter.ssa
 
+import latte.Absyn.*
 import latte.Absyn.AddOp
-import latte.Absyn.Bool
-import latte.Absyn.MulOp
-import latte.Absyn.RelOp
-import latte.Absyn.Str
-import latte.Absyn.Type
 import latte.common.typeToString
 import latte.llvmconverter.typeToLlvm
 import latte.ssaconverter.argToType
@@ -105,7 +101,8 @@ class PhiOp(val phi: Phi): RegistryOp(RegistryArg(phi.registry, phi.getType())) 
     }
 
     override fun opToLlvm(): String {
-        TODO("Not yet implemented")
+        val branches = phi.values.map { "[${it.value.toLlvm()}, %${it.key}]" }.joinToString(separator = ", ")
+        return "phi ${phi.getType()} $branches"
     }
 }
 
@@ -123,13 +120,13 @@ class AppOp(result: Int, val name: String, val type: Type, val args: List<OpArgu
 
 abstract class UnaryOp(result: Int, val arg: OpArgument, type: Type): RegistryOp(RegistryArg(result, type))
 
-class NotOp(result: Int, arg: OpArgument): UnaryOp(result, arg, latte.Absyn.Bool()) {
+class NotOp(result: Int, arg: OpArgument): UnaryOp(result, arg, Bool()) {
     override fun printOp(): String {
         return "not ${arg.print()}"
     }
 
     override fun opToLlvm(): String {
-        TODO("Not yet implemented")
+        return "sub i1 1, ${arg.toLlvm()}"
     }
 }
 class NegOp(result: Int, arg: OpArgument): UnaryOp(result, arg, latte.Absyn.Int()) {
@@ -138,76 +135,95 @@ class NegOp(result: Int, arg: OpArgument): UnaryOp(result, arg, latte.Absyn.Int(
     }
 
     override fun opToLlvm(): String {
-        return "sub i32 0, ${arg.toLlvm()}"
+        return "sub ${arg.toLlvmType()} 0, ${arg.toLlvm()}"
     }
 }
 
-abstract class BinaryOp(result: Int, left: OpArgument, right: OpArgument, type: Type): RegistryOp(RegistryArg(result, type))
+abstract class BinaryOp(result: Int, val left: OpArgument, val right: OpArgument, type: Type): RegistryOp(RegistryArg(result, type)) {
+    override fun opToLlvm(): String {
+        return "${binaryOpName()} ${left.toLlvmType()} ${left.toLlvm()}, ${right.toLlvm()}"
+    }
 
-class AddOp(result: Int, val left: OpArgument, val right: OpArgument, val addOp: AddOp): BinaryOp(result, left, right, argToType(left)) {
+    abstract fun binaryOpName(): String
+}
+
+class AddOp(result: Int, left: OpArgument, right: OpArgument, val addOp: AddOp): BinaryOp(result, left, right, argToType(left)) {
     override fun printOp(): String {
         return "${left.print()} $addOp ${right.print()}"
     }
 
-    override fun opToLlvm(): String {
-        TODO("Not yet implemented")
+    override fun binaryOpName(): String {
+        return "add"
     }
 }
-class OrOp(result: Int, val left: OpArgument, val right: OpArgument): BinaryOp(result, left, right, Bool()) {
+class OrOp(result: Int, left: OpArgument, right: OpArgument): BinaryOp(result, left, right, Bool()) {
     override fun printOp(): String {
         return "${left.print()} || ${right.print()}"
     }
 
-    override fun opToLlvm(): String {
-        TODO("Not yet implemented")
+    override fun binaryOpName(): String {
+        return "or"
     }
 }
-class AndOp(result: Int, val left: OpArgument, val right: OpArgument): BinaryOp(result, left, right, Bool()) {
+class AndOp(result: Int, left: OpArgument, right: OpArgument): BinaryOp(result, left, right, Bool()) {
     override fun printOp(): String {
         return "${left.print()} && ${right.print()}"
     }
 
-    override fun opToLlvm(): String {
-        TODO("Not yet implemented")
+    override fun binaryOpName(): String {
+        return "and"
     }
 }
-class MultiplicationOp(result: Int, val left: OpArgument, val right: OpArgument, val mulOp: MulOp): BinaryOp(result, left, right, latte.Absyn.Int()) {
+class MultiplicationOp(result: Int, left: OpArgument, right: OpArgument, val mulOp: MulOp): BinaryOp(result, left, right, latte.Absyn.Int()) {
     override fun printOp(): String {
         return "${left.print()} $mulOp ${right.print()}"
     }
 
-    override fun opToLlvm(): String {
-        TODO("Not yet implemented")
+    override fun binaryOpName(): String {
+        return "mul"
     }
 }
-class AddStringOp(result: Int, val left: OpArgument, val right: OpArgument): BinaryOp(result, left, right, Str()) {
+class AddStringOp(result: Int, left: OpArgument, right: OpArgument): BinaryOp(result, left, right, Str()) {
     override fun printOp(): String {
         return "${left.print()} ++ ${right.print()}"
     }
 
-    override fun opToLlvm(): String {
-        TODO("Not yet implemented")
+    override fun binaryOpName(): String {
+        TODO("adding strings not implemented yet")
     }
 }
 
 // Bools are represented as i1, so they can be compared like ints, but strings need separate ops.
-class RelationOp(result: Int, val left: OpArgument, val right: OpArgument, val relOp: RelOp): BinaryOp(result, left, right, Bool()) {
+class RelationOp(result: Int, left: OpArgument, right: OpArgument, val relOp: RelOp): BinaryOp(result, left, right, Bool()) {
     override fun printOp(): String {
         return "${left.print()} $relOp ${right.print()}"
     }
 
-    override fun opToLlvm(): String {
-        TODO("Not yet implemented")
+    override fun binaryOpName(): String {
+        val relName = when(relOp) {
+            is GTH -> "sgt"
+            is GE -> "sge"
+            is LTH -> "slt"
+            is LE -> "sle"
+            is EQU -> "eq"
+            is NE -> "ne"
+            else -> throw RuntimeException("unknown relop: $relOp")
+        }
+        return "add $relName"
     }
 }
 
-class StringRelationOp(result: Int, val left: OpArgument, val right: OpArgument, val relOp: RelOp): BinaryOp(result, left, right, Bool()) {
+class StringRelationOp(result: Int, left: OpArgument, right: OpArgument, val relOp: RelOp): BinaryOp(result, left, right, Bool()) {
     override fun printOp(): String {
         return "${left.print()} STRCMP $relOp ${right.print()}"
     }
 
     override fun opToLlvm(): String {
         TODO("Not yet implemented")
+    }
+
+    override fun binaryOpName(): String {
+        throw RuntimeException("string relation op should not have binaryOpName defined")
     }
 }
 
@@ -217,7 +233,7 @@ class ReturnVoidOp: Op() {
     }
 
     override fun toLlvm(): String {
-        TODO("Not yet implemented")
+        return "ret"
     }
 }
 
@@ -237,7 +253,7 @@ class IfOp(val cond: OpArgument, val label1: String, val label2: String): Op() {
     }
 
     override fun toLlvm(): String {
-        TODO("Not yet implemented")
+        return "br ${cond.toLlvmType()}, label $label1, label $label2"
     }
 }
 class JumpOp(val label: String): Op() {
@@ -246,6 +262,6 @@ class JumpOp(val label: String): Op() {
     }
 
     override fun toLlvm(): String {
-        TODO("Not yet implemented")
+        return "br label $label"
     }
 }
