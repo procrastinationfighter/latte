@@ -2,6 +2,7 @@ package latte.llvmconverter
 
 import latte.Absyn.*
 import latte.common.typeToString
+import latte.ssaconverter.ssa.ReturnVoidOp
 import latte.ssaconverter.ssa.SSA
 import latte.ssaconverter.ssa.SSABlock
 import latte.ssaconverter.ssa.SSAFun
@@ -45,23 +46,37 @@ class LLVMConverter(private val ssa: SSA) {
 
     private fun funToStr(f: SSAFun): String {
         val header = getFunHeader(f)
-        val body = getFunBody(f.block)
+        val body = getFunBody(f.block, f.type)
 
         return "$header\n$body\n}\n"
     }
 
-    private fun getFunBody(block: SSABlock): String {
+    private fun getFunBody(block: SSABlock, funType: Type): String {
         val visited = mutableSetOf(block.label)
         val blocks = mutableListOf<String>()
-        visitBlock(block, visited, blocks)
+        visitBlock(block, visited, blocks, funType)
 
         return blocks.joinToString(separator = "\n")
     }
 
-    private fun visitBlock(block: SSABlock, visited: MutableSet<String>, blocks: MutableList<String>) {
+    private fun visitBlock(block: SSABlock, visited: MutableSet<String>, blocks: MutableList<String>, funType: Type) {
         val ops = mutableListOf<String>()
         for (op in block.ops) {
             ops.add(op.toLlvm())
+        }
+        if (ops.isEmpty()) {
+            if (funType is Void) {
+                ops.add(ReturnVoidOp().toLlvm())
+            } else {
+                // An empty block that should be skipped.
+                return
+            }
+        } else if (!block.returned && !block.ended) {
+            if (funType is Void) {
+                ops.add(ReturnVoidOp().toLlvm())
+            } else {
+                throw RuntimeException("somehow found a block that does not end with return!")
+            }
         }
 
         blocks.add("${block.label}:\n  " + ops.joinToString(separator = "\n  "))
@@ -69,7 +84,7 @@ class LLVMConverter(private val ssa: SSA) {
         for (n in block.next) {
             if (!visited.contains(n.label)) {
                 visited.add(n.label)
-                visitBlock(n, visited, blocks)
+                visitBlock(n, visited, blocks, funType)
             }
         }
     }
@@ -82,7 +97,7 @@ class LLVMConverter(private val ssa: SSA) {
     }
 
     private fun arToLlvm(arg: Ar, reg: Int): String {
-        return "${typeToLlvm(arg.type_)} %$reg"
+        return "${typeToLlvm(arg.type_)} %reg$reg"
     }
 
 }

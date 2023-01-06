@@ -172,6 +172,13 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 }
             }
             is Cond -> {
+                // Handle if(true) and if(false)
+                if (stmt.expr_ is ELitTrue) {
+                    return visitStmt(stmt.stmt_, block)
+                } else if (stmt.expr_ is ELitFalse) {
+                    return block
+                }
+
                 val cond = visitExpr(stmt.expr_, block)
                 val ifLabel = getNextLabel()
                 val continueLabel = getNextLabel()
@@ -194,6 +201,13 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 return continueBlock
             }
             is CondElse -> {
+                // Handle if(true) and if (false)
+                if (stmt.expr_ is ELitTrue) {
+                    return visitStmt(stmt.stmt_1, block)
+                } else if (stmt.expr_ is ELitFalse) {
+                    return visitStmt(stmt.stmt_2, block)
+                }
+
                 val cond = visitExpr(stmt.expr_, block)
                 val ifLabel = getNextLabel()
                 val elseLabel = getNextLabel()
@@ -270,6 +284,10 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
     }
 
     private fun visitWhile(stmt: While, block: SSABlock): SSABlock {
+        if (stmt.expr_ is ELitFalse) {
+            // don't emit code for while (false)
+            return block
+        }
         // 1. initial block -> 2
         // 2. condition block -> 3 | 4
         // 3. loop body block -> 2
@@ -473,14 +491,16 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             is EApp -> {
                 val args = visitListExpr(expr.listexpr_, block)
                 val type = definitions.functions[expr.ident_]!!.returnType
-                val reg = if (type is Void) {
-                    0
+                if (type is Void) {
+                    // If void, don't assign to a registry
+                    block.addOp(AppOp(0, expr.ident_, type, args))
+                    return RegistryArg(0, type)
                 } else {
-                    getNextRegistry()
+                    val reg = getNextRegistry()
+                    block.addOp(AppOp(reg, expr.ident_, type, args))
+                    currTypes[reg] = type
+                    return RegistryArg(reg, type)
                 }
-                block.addOp(AppOp(reg, expr.ident_, type, args))
-                currTypes[reg] = type
-                return RegistryArg(reg, type)
             }
             is ELitFalse -> BoolArg(false)
             is ELitTrue -> BoolArg(true)

@@ -20,7 +20,7 @@ class RegistryArg(val number: Int, val type: Type): OpArgument {
     }
 
     override fun toLlvm(): String {
-        return "%${number}"
+        return "%reg${number}"
     }
 
     override fun toLlvmType(): String {
@@ -90,7 +90,7 @@ abstract class RegistryOp(val result: RegistryArg): Op() {
         return if (this is AppOp && this.type is latte.Absyn.Void) {
             opToLlvm()
         } else {
-            "%${result.number} = ${opToLlvm()}"
+            "%reg${result.number} = ${opToLlvm()}"
         }
     }
 
@@ -104,7 +104,7 @@ class PhiOp(val phi: Phi): RegistryOp(RegistryArg(phi.registry, phi.getType())) 
 
     override fun opToLlvm(): String {
         val branches = phi.values.map { "[${it.value.toLlvm()}, %${it.key}]" }.joinToString(separator = ", ")
-        return "phi ${phi.getType()} $branches"
+        return "phi ${typeToLlvm(phi.getType())} $branches"
     }
 }
 
@@ -155,7 +155,11 @@ class AddOp(result: Int, left: OpArgument, right: OpArgument, val addOp: AddOp):
     }
 
     override fun binaryOpName(): String {
-        return "add"
+        return when (addOp) {
+            is Plus -> "add"
+            is Minus -> "sub"
+            else -> throw java.lang.RuntimeException("unknown addOp: $addOp")
+        }
     }
 }
 class OrOp(result: Int, left: OpArgument, right: OpArgument): BinaryOp(result, left, right, Bool()) {
@@ -218,7 +222,7 @@ class RelationOp(result: Int, left: OpArgument, right: OpArgument, val relOp: Re
             is NE -> "ne"
             else -> throw RuntimeException("unknown relop: $relOp")
         }
-        return "add $relName"
+        return "icmp $relName"
     }
 }
 
@@ -255,7 +259,7 @@ class ReturnVoidOp: Op() {
     }
 
     override fun toLlvm(): String {
-        return "ret"
+        return "ret void"
     }
 }
 
@@ -275,7 +279,7 @@ class IfOp(val cond: OpArgument, val label1: String, val label2: String): Op() {
     }
 
     override fun toLlvm(): String {
-        return "br ${cond.toLlvmType()}, label $label1, label $label2"
+        return "br ${cond.toLlvmType()} ${cond.toLlvm()}, label %$label1, label %$label2"
     }
 }
 class JumpOp(val label: String): Op() {
@@ -284,6 +288,6 @@ class JumpOp(val label: String): Op() {
     }
 
     override fun toLlvm(): String {
-        return "br label $label"
+        return "br label %$label"
     }
 }

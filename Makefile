@@ -1,5 +1,5 @@
 compile: antlr-dir latc_llvm lib/runtime.bc
-	cd src && mvn compile assembly:single
+	cd src && mvn -q compile assembly:single
 
 antlr-dir: antlr-4.11.1-complete.jar
 	mkdir antlr-dir
