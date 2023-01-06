@@ -20,6 +20,9 @@ fun main(args: Array<String>) {
     } else if (!args[0].endsWith(".lat")) {
         System.err.println("Input file must have .lat extension")
         return
+    } else if (args.size < 2) {
+        System.err.println("Directory to runtime.bc not provided")
+        return
     }
 
     val input = File(args[0]).inputStream()
@@ -52,7 +55,13 @@ fun main(args: Array<String>) {
         val llvmCode = llvmConverter.convert()
 
         System.err.println("OK")
-        println(llvmCode)
+
+        val commonFilename = args[0].substring(0, args[0].length - 4)
+        val llvmOutputFilename = "$commonFilename.ll"
+        File(llvmOutputFilename).writeText(llvmCode)
+        ProcessBuilder("llvm-as", "-o", "${commonFilename}.bc", llvmOutputFilename).start()
+        ProcessBuilder("llvm-link", "-o", "${commonFilename}.bc", "${commonFilename}.bc", args[1]).start()
+
         exitProcess(0)
     } catch (e: LatteException) {
         System.err.println("ERROR")
