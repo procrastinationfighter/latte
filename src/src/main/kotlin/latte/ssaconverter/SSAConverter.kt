@@ -7,9 +7,19 @@ import latte.ssaconverter.ssa.AddOp
 import latte.typecheck.unexpectedErrorExit
 import kotlin.system.exitProcess
 
+fun argToType(arg: OpArgument): Type {
+    return when (arg) {
+        is RegistryArg -> arg.type
+        is BoolArg -> Bool()
+        is IntArg -> Int()
+        is StringArg -> Str()
+        else -> TODO("argToType not implemented for $arg")
+    }
+}
+
 class SSAConverter(var program: Prog, private val definitions: LatteDefinitions) {
     private var ssa = SSA()
-    private var nextRegistry = 1
+    private var nextRegistry = 0
     private var nextLabelNo = 1
     private var currEnv: MutableList<MutableMap<String, OpArgument>> = mutableListOf()
     private var currTypes = mutableMapOf<Int, Type>()
@@ -29,7 +39,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
     }
 
     private fun resetRegistry() {
-        nextRegistry = 1
+        nextRegistry = 0
     }
 
     private fun getNextRegistry(): Int {
@@ -47,7 +57,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         }
 
         // Technically, shouldn't happen: type checker already checked that
-        return RegistryArg(-1)
+        return RegistryArg(-1, Void())
     }
 
     private fun restoreEnv(block: SSABlock) {
@@ -63,16 +73,6 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
 
         if (arg is RegistryArg) {
             currTypes[arg.number] = type
-        }
-    }
-
-    private fun argToType(arg: OpArgument): Type {
-        return when (arg) {
-            is RegistryArg -> currTypes[arg.number]!!
-            is BoolArg -> Bool()
-            is IntArg -> Int()
-            is StringArg -> Str()
-            else -> TODO("argToType not implemented for $arg")
         }
     }
 
@@ -130,7 +130,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         for (arg in args) {
             val a = arg as Ar
             val reg = getNextRegistry()
-            currEnv[currEnv.size - 1][a.ident_] = RegistryArg(reg)
+            currEnv[currEnv.size - 1][a.ident_] = RegistryArg(reg, a.type_)
             currTypes[reg] = a.type_
         }
     }
@@ -226,7 +226,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             is Decl -> visitListItem(stmt.type_, stmt.listitem_, block)
             is Decr -> {
                 val reg = getNextRegistry()
-                val regArg = RegistryArg(reg)
+                val regArg = RegistryArg(reg, Int())
                 block.addOp(AddOp(reg, getVarValue(stmt.ident_), IntArg(1), Minus()))
                 changeVar(stmt.ident_, regArg)
 
@@ -237,7 +237,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             is Empty -> {}
             is Incr -> {
                 val reg = getNextRegistry()
-                val regArg = RegistryArg(reg)
+                val regArg = RegistryArg(reg, Int())
                 block.addOp(AddOp(reg, getVarValue(stmt.ident_), IntArg(1), Plus()))
                 changeVar(stmt.ident_, regArg)
 
@@ -388,7 +388,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 block.addOp(OrOp(reg, left, right))
                 currTypes[reg] = Bool()
 
-                return RegistryArg(reg)
+                return RegistryArg(reg, Bool())
             }
             is EAnd -> {
                 val left = visitExpr(expr.expr_1, block)
@@ -397,7 +397,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 block.addOp(AndOp(reg, left, right))
                 currTypes[reg] = Bool()
 
-                return RegistryArg(reg)
+                return RegistryArg(reg, Bool())
             }
             is ERel -> {
                 val left = visitExpr(expr.expr_1, block)
@@ -411,16 +411,17 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 }
                 currTypes[reg] = Bool()
 
-                return RegistryArg(reg)
+                return RegistryArg(reg, Bool())
             }
             is EAdd -> {
                 val left = visitExpr(expr.expr_1, block)
                 val right = visitExpr(expr.expr_2, block)
                 val reg = getNextRegistry()
+                var type: Type? = null
 
                 when (left) {
                     is RegistryArg -> {
-                        val type = currTypes[left.number]
+                        type = currTypes[left.number]
                         if (type == null) {
                             TODO("registry ${left.number} has no type assigned")
                         } else if (type is latte.Absyn.Int) {
@@ -434,15 +435,17 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                     is IntArg -> {
                         block.addOp(AddOp(reg, left, right, expr.addop_))
                         currTypes[reg] = Int()
+                        type = Int()
                     }
                     is StringArg -> {
                         block.addOp(AddStringOp(reg, left, right))
                         currTypes[reg] = Str()
+                        type = Str()
                     }
                     else -> TODO("not supported add quadruple op")
                 }
 
-                return RegistryArg(reg)
+                return RegistryArg(reg, type)
             }
             is EMul -> {
                 val left = visitExpr(expr.expr_1, block)
@@ -451,21 +454,21 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 block.addOp(MultiplicationOp(reg, left, right, expr.mulop_))
                 currTypes[reg] = Int()
 
-                return RegistryArg(reg)
+                return RegistryArg(reg, Int())
             }
             is Not -> {
                 val res = visitExpr(expr.expr_, block)
                 val reg = getNextRegistry()
                 block.addOp(NotOp(reg, res))
-                currTypes[reg] = Int()
-                return RegistryArg(reg)
+                currTypes[reg] = Bool()
+                return RegistryArg(reg, Bool())
             }
             is Neg -> {
                 val res = visitExpr(expr.expr_, block)
                 val reg = getNextRegistry()
                 block.addOp(NegOp(reg, res))
                 currTypes[reg] = Int()
-                return RegistryArg(reg)
+                return RegistryArg(reg, Int())
             }
             is EApp -> {
                 val args = visitListExpr(expr.listexpr_, block)
@@ -473,7 +476,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 val type = definitions.functions[expr.ident_]!!.returnType
                 block.addOp(AppOp(reg, expr.ident_, type, args))
                 currTypes[reg] = type
-                return RegistryArg(reg)
+                return RegistryArg(reg, type)
             }
             is ELitFalse -> BoolArg(false)
             is ELitTrue -> BoolArg(true)

@@ -15,7 +15,7 @@ class SSABlock(val label: String, phi: List<Phi>, conv: SSAConverter) {
     init {
         for (p in phi) {
             addOp(PhiOp(p))
-            conv.changeVar(p.variable, RegistryArg(p.registry))
+            conv.changeVar(p.variable, RegistryArg(p.registry, p.getType()))
         }
     }
 

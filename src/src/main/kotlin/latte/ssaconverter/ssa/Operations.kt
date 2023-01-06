@@ -1,25 +1,33 @@
 package latte.ssaconverter.ssa
 
 import latte.Absyn.AddOp
+import latte.Absyn.Bool
 import latte.Absyn.MulOp
 import latte.Absyn.RelOp
+import latte.Absyn.Str
 import latte.Absyn.Type
 import latte.common.typeToString
 import latte.llvmconverter.typeToLlvm
+import latte.ssaconverter.argToType
 import javax.swing.text.StyledEditorKit.BoldAction
 
 interface OpArgument {
     fun print(): String
     fun toLlvm(): String
+    fun toLlvmType(): String
 }
 
-class RegistryArg(val number: Int): OpArgument {
+class RegistryArg(val number: Int, val type: Type): OpArgument {
     override fun print(): String {
         return "%$number"
     }
 
     override fun toLlvm(): String {
         return "%${number}"
+    }
+
+    override fun toLlvmType(): String {
+        return typeToLlvm(type)
     }
 }
 
@@ -30,6 +38,10 @@ class IntArg(val number: Int): OpArgument {
 
     override fun toLlvm(): String {
         return number.toString()
+    }
+
+    override fun toLlvmType(): String {
+        return "i32"
     }
 }
 
@@ -45,6 +57,10 @@ class BoolArg(val b: Boolean): OpArgument {
             "0"
         }
     }
+
+    override fun toLlvmType(): String {
+        return "i1"
+    }
 }
 
 class StringArg(val s: String): OpArgument {
@@ -54,6 +70,10 @@ class StringArg(val s: String): OpArgument {
 
     override fun toLlvm(): String {
         TODO("Not yet implemented")
+    }
+
+    override fun toLlvmType(): String {
+        return "i8*"
     }
 }
 
@@ -79,7 +99,7 @@ abstract class RegistryOp(val result: RegistryArg): Op() {
     abstract fun opToLlvm(): String;
 }
 
-class PhiOp(val phi: Phi): RegistryOp(RegistryArg(phi.registry)) {
+class PhiOp(val phi: Phi): RegistryOp(RegistryArg(phi.registry, phi.getType())) {
     override fun printOp(): String {
         return phi.values.map { "${it.key}: ${it.value.print()}" }.joinToString(prefix = "phi[", separator = ", ", postfix = "]")
     }
@@ -89,21 +109,21 @@ class PhiOp(val phi: Phi): RegistryOp(RegistryArg(phi.registry)) {
     }
 }
 
-class AppOp(result: Int, val name: String, val type: Type, val args: List<OpArgument>): RegistryOp(RegistryArg(result)) {
+class AppOp(result: Int, val name: String, val type: Type, val args: List<OpArgument>): RegistryOp(RegistryArg(result, type)) {
     override fun printOp(): String {
         val argsStr = args.joinToString(separator = ", ") { it.print() }
         return "call $name ($argsStr): ${typeToString(type)}"
     }
 
     override fun opToLlvm(): String {
-        val argsStr = args.joinToString(separator = ", ") { it.toLlvm() }
+        val argsStr = args.joinToString(separator = ", ") { "${typeToLlvm(argToType(it))} ${it.toLlvm()}" }
         return "call ${typeToLlvm(type)} @$name($argsStr)"
     }
 }
 
-abstract class UnaryOp(result: Int, val arg: OpArgument): RegistryOp(RegistryArg(result))
+abstract class UnaryOp(result: Int, val arg: OpArgument, type: Type): RegistryOp(RegistryArg(result, type))
 
-class NotOp(result: Int, arg: OpArgument): UnaryOp(result, arg) {
+class NotOp(result: Int, arg: OpArgument): UnaryOp(result, arg, latte.Absyn.Bool()) {
     override fun printOp(): String {
         return "not ${arg.print()}"
     }
@@ -112,7 +132,7 @@ class NotOp(result: Int, arg: OpArgument): UnaryOp(result, arg) {
         TODO("Not yet implemented")
     }
 }
-class NegOp(result: Int, arg: OpArgument): UnaryOp(result, arg) {
+class NegOp(result: Int, arg: OpArgument): UnaryOp(result, arg, latte.Absyn.Int()) {
     override fun printOp(): String {
         return "neg ${arg.print()}"
     }
@@ -121,19 +141,10 @@ class NegOp(result: Int, arg: OpArgument): UnaryOp(result, arg) {
         return "sub i32 0, ${arg.toLlvm()}"
     }
 }
-class AssignOp(result: Int, arg: OpArgument): UnaryOp(result, arg) {
-    override fun printOp(): String {
-        return arg.print()
-    }
 
-    override fun opToLlvm(): String {
-        TODO("Not yet implemented")
-    }
-}
+abstract class BinaryOp(result: Int, left: OpArgument, right: OpArgument, type: Type): RegistryOp(RegistryArg(result, type))
 
-abstract class BinaryOp(result: Int, left: OpArgument, right: OpArgument): RegistryOp(RegistryArg(result))
-
-class AddOp(result: Int, val left: OpArgument, val right: OpArgument, val addOp: AddOp): BinaryOp(result, left, right) {
+class AddOp(result: Int, val left: OpArgument, val right: OpArgument, val addOp: AddOp): BinaryOp(result, left, right, argToType(left)) {
     override fun printOp(): String {
         return "${left.print()} $addOp ${right.print()}"
     }
@@ -142,7 +153,7 @@ class AddOp(result: Int, val left: OpArgument, val right: OpArgument, val addOp:
         TODO("Not yet implemented")
     }
 }
-class OrOp(result: Int, val left: OpArgument, val right: OpArgument): BinaryOp(result, left, right) {
+class OrOp(result: Int, val left: OpArgument, val right: OpArgument): BinaryOp(result, left, right, Bool()) {
     override fun printOp(): String {
         return "${left.print()} || ${right.print()}"
     }
@@ -151,7 +162,7 @@ class OrOp(result: Int, val left: OpArgument, val right: OpArgument): BinaryOp(r
         TODO("Not yet implemented")
     }
 }
-class AndOp(result: Int, val left: OpArgument, val right: OpArgument): BinaryOp(result, left, right) {
+class AndOp(result: Int, val left: OpArgument, val right: OpArgument): BinaryOp(result, left, right, Bool()) {
     override fun printOp(): String {
         return "${left.print()} && ${right.print()}"
     }
@@ -160,7 +171,7 @@ class AndOp(result: Int, val left: OpArgument, val right: OpArgument): BinaryOp(
         TODO("Not yet implemented")
     }
 }
-class MultiplicationOp(result: Int, val left: OpArgument, val right: OpArgument, val mulOp: MulOp): BinaryOp(result, left, right) {
+class MultiplicationOp(result: Int, val left: OpArgument, val right: OpArgument, val mulOp: MulOp): BinaryOp(result, left, right, latte.Absyn.Int()) {
     override fun printOp(): String {
         return "${left.print()} $mulOp ${right.print()}"
     }
@@ -169,7 +180,7 @@ class MultiplicationOp(result: Int, val left: OpArgument, val right: OpArgument,
         TODO("Not yet implemented")
     }
 }
-class AddStringOp(result: Int, val left: OpArgument, val right: OpArgument): BinaryOp(result, left, right) {
+class AddStringOp(result: Int, val left: OpArgument, val right: OpArgument): BinaryOp(result, left, right, Str()) {
     override fun printOp(): String {
         return "${left.print()} ++ ${right.print()}"
     }
@@ -180,7 +191,7 @@ class AddStringOp(result: Int, val left: OpArgument, val right: OpArgument): Bin
 }
 
 // Bools are represented as i1, so they can be compared like ints, but strings need separate ops.
-class RelationOp(result: Int, val left: OpArgument, val right: OpArgument, val relOp: RelOp): BinaryOp(result, left, right) {
+class RelationOp(result: Int, val left: OpArgument, val right: OpArgument, val relOp: RelOp): BinaryOp(result, left, right, Bool()) {
     override fun printOp(): String {
         return "${left.print()} $relOp ${right.print()}"
     }
@@ -190,7 +201,7 @@ class RelationOp(result: Int, val left: OpArgument, val right: OpArgument, val r
     }
 }
 
-class StringRelationOp(result: Int, val left: OpArgument, val right: OpArgument, val relOp: RelOp): BinaryOp(result, left, right) {
+class StringRelationOp(result: Int, val left: OpArgument, val right: OpArgument, val relOp: RelOp): BinaryOp(result, left, right, Bool()) {
     override fun printOp(): String {
         return "${left.print()} STRCMP $relOp ${right.print()}"
     }

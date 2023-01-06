@@ -65,8 +65,8 @@ class LLVMConverter(private val ssa: SSA) {
     }
 
     private fun getFunHeader(f: SSAFun): String {
-        var i = 1
-        val args = f.args.map { arToLlvm(it as Ar, i++) }
+        var i = 0
+        val args = f.args.map { arToLlvm(it as Ar, i++) }.joinToString(separator = ", ")
 
         return "define ${typeToLlvm(f.type)} @${f.name} ($args) {"
     }
