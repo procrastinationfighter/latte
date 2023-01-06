@@ -6,6 +6,16 @@ import latte.ssaconverter.ssa.SSA
 import latte.ssaconverter.ssa.SSABlock
 import latte.ssaconverter.ssa.SSAFun
 
+fun typeToLlvm(type: Type): String {
+    return when(type) {
+        is latte.Absyn.Int -> "i32"
+        is Str -> "i8*"
+        is Bool -> "i1"
+        is Void -> "void"
+        else -> TODO("type not supported in typeToLlvm: ${typeToString(type)}")
+    }
+}
+
 class LLVMConverter(private val ssa: SSA) {
 
     private fun getExternalFuns(): String {
@@ -58,20 +68,11 @@ class LLVMConverter(private val ssa: SSA) {
         var i = 1
         val args = f.args.map { arToLlvm(it as Ar, i++) }
 
-        return "define ${typeToLlvm(f.type)} @${f.name} ($args)"
+        return "define ${typeToLlvm(f.type)} @${f.name} ($args) {"
     }
 
     private fun arToLlvm(arg: Ar, reg: Int): String {
         return "${typeToLlvm(arg.type_)} %$reg"
-    }
-
-    private fun typeToLlvm(type: Type): String {
-        return when(type) {
-            is latte.Absyn.Int -> "i32"
-            is Str -> "i8*"
-            is Bool -> "i1"
-            else -> TODO("type not supported in typeToLlvm: ${typeToString(type)}")
-        }
     }
 
 }
