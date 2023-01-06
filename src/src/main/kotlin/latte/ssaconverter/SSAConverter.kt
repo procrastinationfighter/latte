@@ -150,7 +150,6 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
     private fun visitStmt(stmt: Stmt, block: SSABlock): SSABlock {
         when(stmt) {
             is Ass -> {
-                // TODO: avoid assigning something to register directly
                 val res = visitExpr(stmt.expr_, block)
                 changeVar(stmt.ident_, res)
 
@@ -372,7 +371,6 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         return l
     }
 
-
     private fun visitListItem(type: Type, listItem: ListItem, block: SSABlock) {
         for (item in listItem) {
             when (item) {
@@ -399,15 +397,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
 
     private fun visitExpr(expr: Expr, block: SSABlock): OpArgument {
         return when (expr) {
-            is EOr -> {
-                val left = visitExpr(expr.expr_1, block)
-                val right = visitExpr(expr.expr_2, block)
-                val reg = getNextRegistry()
-                block.addOp(OrOp(reg, left, right))
-                currTypes[reg] = Bool()
-
-                return RegistryArg(reg, Bool())
-            }
+            is EOr -> visitOr(expr, block)
             is EAnd -> {
                 val left = visitExpr(expr.expr_1, block)
                 val right = visitExpr(expr.expr_2, block)
@@ -517,6 +507,38 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             is ECast -> TODO("extension: cast")
             else -> TODO("unknown expr")
         }
+    }
+
+    private fun visitOr(expr: EOr, block: SSABlock): OpArgument {
+        val left = visitExpr(expr.expr_1, block)
+        // This must be evaluated lazily. If left was true, then don't evaluate right.
+        val trueLabel = getNextLabel()
+        val falseLabel = getNextLabel()
+        val continueLabel = getNextLabel()
+        block.addOp(IfOp(left, trueLabel, falseLabel))
+
+        val trueBlock = SSABlock(trueLabel, emptyList(), this)
+        trueBlock.addOp(JumpOp(continueLabel))
+
+        val falseBlock = SSABlock(falseLabel, emptyList(), this)
+        val right = visitExpr(expr.expr_2, falseBlock)
+        val reg = getNextRegistry()
+        falseBlock.addOp(OrOp(reg, left, right))
+        falseBlock.addOp(JumpOp(continueLabel))
+
+        block.addNext(trueBlock)
+        block.addNext(falseBlock)
+
+        val phiReg = getNextRegistry()
+        val phi = Phi("", phiReg, mapOf(trueLabel to BoolArg(true), falseLabel to RegistryArg(reg, Bool())))
+
+        val continueBlock = SSABlock(continueLabel, listOf(phi), this)
+        currTypes[phiReg] = Bool()
+
+        trueBlock.addNext(continueBlock)
+        falseBlock.addNext(continueBlock)
+
+        return RegistryArg(phiReg, Bool())
     }
 
     private fun visitListExpr(listexpr_: ListExpr, block: SSABlock): List<OpArgument> {

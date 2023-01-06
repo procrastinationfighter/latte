@@ -6,7 +6,6 @@ import latte.ssaconverter.ssa.ReturnVoidOp
 import latte.ssaconverter.ssa.SSA
 import latte.ssaconverter.ssa.SSABlock
 import latte.ssaconverter.ssa.SSAFun
-import java.lang.StringBuilder
 
 fun typeToLlvm(type: Type): String {
     return when(type) {
