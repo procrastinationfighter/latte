@@ -67,5 +67,8 @@ fun main(args: Array<String>) {
         System.err.println("ERROR")
         System.err.println("error at (${e.line},${e.column}): " + e.message)
         exitProcess(1)
+    } catch (r: RuntimeException) {
+        System.err.println("INTERNAL ERROR: ${r.message}")
+        exitProcess(1)
     }
 }

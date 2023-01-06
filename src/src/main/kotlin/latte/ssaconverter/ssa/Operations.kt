@@ -182,7 +182,14 @@ class MultiplicationOp(result: Int, left: OpArgument, right: OpArgument, val mul
     }
 
     override fun binaryOpName(): String {
-        return "mul"
+        return when(mulOp) {
+            is Times -> "mul"
+            is Div -> "sdiv"
+            is Mod -> "srem"
+            else -> {
+                throw RuntimeException("unknown mulOp: $mulOp")
+            }
+        }
     }
 }
 class AddStringOp(result: Int, val left: OpArgument, val right: OpArgument): RegistryOp(RegistryArg(result, Str())) {

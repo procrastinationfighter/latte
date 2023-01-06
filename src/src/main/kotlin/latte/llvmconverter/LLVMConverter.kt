@@ -13,7 +13,7 @@ fun typeToLlvm(type: Type): String {
         is Str -> "i8*"
         is Bool -> "i1"
         is Void -> "void"
-        else -> TODO("type not supported in typeToLlvm: ${typeToString(type)}")
+        else -> throw RuntimeException("type not supported in typeToLlvm: ${typeToString(type)}")
     }
 }
 
