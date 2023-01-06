@@ -373,7 +373,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
     private fun getTypeDefaultValue(type: Type): OpArgument {
         return when (type) {
             is latte.Absyn.Int -> IntArg(0)
-            is Str -> StringArg("")
+            is Str -> StringArg("empty", 1)
             is Bool -> BoolArg(false)
             else -> TODO("default type not implemented for $type")
         }
@@ -472,8 +472,12 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             }
             is EApp -> {
                 val args = visitListExpr(expr.listexpr_, block)
-                val reg = getNextRegistry()
                 val type = definitions.functions[expr.ident_]!!.returnType
+                val reg = if (type is Void) {
+                    0
+                } else {
+                    getNextRegistry()
+                }
                 block.addOp(AppOp(reg, expr.ident_, type, args))
                 currTypes[reg] = type
                 return RegistryArg(reg, type)
@@ -481,7 +485,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             is ELitFalse -> BoolArg(false)
             is ELitTrue -> BoolArg(true)
             is ELitInt -> IntArg(expr.integer_)
-            is EString -> StringArg(expr.string_)
+            is EString -> StringArg(ssa.addStr(expr.string_), expr.string_.length + 1)
             is EVar -> getVarValue(expr.ident_)
 
             is ENull -> TODO("extension: lit null")

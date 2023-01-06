@@ -5,6 +5,7 @@ import latte.common.typeToString
 import latte.ssaconverter.ssa.SSA
 import latte.ssaconverter.ssa.SSABlock
 import latte.ssaconverter.ssa.SSAFun
+import java.lang.StringBuilder
 
 fun typeToLlvm(type: Type): String {
     return when(type) {
@@ -24,13 +25,22 @@ class LLVMConverter(private val ssa: SSA) {
                 "declare void @error()\n" +
                 "declare i32 @readInt()\n" +
                 "declare i8* @readString()\n" +
-                "declare i32 @compareStr(i8*, i8*, i32)\n"
+                "declare i32 @compareStr(i8*, i8*, i32)\n" +
+                "declare i8* @addStr(i8*, i8*)"
+    }
+
+    private fun strToLlvm(str: String): String {
+        val type = "[${str.length + 1} x i8]"
+
+        // We ignore special characters like \n
+        return "$type c\"$str\\00\""
     }
 
     fun convert(): String {
+        val strings = ssa.strings.map { "@${it.value} = internal constant ${strToLlvm(it.key)}" }.joinToString(separator="\n")
         val functions = ssa.defs.map { funToStr(it.value) }
         val external = getExternalFuns()
-        return functions.joinToString(separator = "\n", prefix = external)
+        return functions.joinToString(separator = "\n", prefix = "$external\n$strings\n")
     }
 
     private fun funToStr(f: SSAFun): String {

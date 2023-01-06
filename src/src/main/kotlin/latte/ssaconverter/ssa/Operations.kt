@@ -6,6 +6,7 @@ import latte.common.typeToString
 import latte.llvmconverter.typeToLlvm
 import latte.ssaconverter.argToType
 import javax.swing.text.StyledEditorKit.BoldAction
+import kotlin.system.exitProcess
 
 interface OpArgument {
     fun print(): String
@@ -59,13 +60,14 @@ class BoolArg(val b: Boolean): OpArgument {
     }
 }
 
-class StringArg(val s: String): OpArgument {
+// s is the name of the variable that contains the string
+class StringArg(val s: String, val len: Int): OpArgument {
     override fun print(): String {
         return "\"$s\""
     }
 
     override fun toLlvm(): String {
-        TODO("Not yet implemented")
+        return "getelementptr ([$len x i8], [$len x i8]* @$s, i64 0, i64 0)"
     }
 
     override fun toLlvmType(): String {
@@ -183,13 +185,13 @@ class MultiplicationOp(result: Int, left: OpArgument, right: OpArgument, val mul
         return "mul"
     }
 }
-class AddStringOp(result: Int, left: OpArgument, right: OpArgument): BinaryOp(result, left, right, Str()) {
+class AddStringOp(result: Int, val left: OpArgument, val right: OpArgument): RegistryOp(RegistryArg(result, Str())) {
     override fun printOp(): String {
         return "${left.print()} ++ ${right.print()}"
     }
 
-    override fun binaryOpName(): String {
-        TODO("adding strings not implemented yet")
+    override fun opToLlvm(): String {
+        return "call i8* @addStr(i8* ${left.toLlvm()}, i8* ${right.toLlvm()})"
     }
 }
 
@@ -219,7 +221,20 @@ class StringRelationOp(result: Int, left: OpArgument, right: OpArgument, val rel
     }
 
     override fun opToLlvm(): String {
-        TODO("Not yet implemented")
+        val relOpCode: Int = when(relOp) {
+            is GE -> 1
+            is GTH -> 2
+            is LTH -> 3
+            is LE -> 4
+            is EQU -> 5
+            is NE -> 6
+            else -> {
+                System.err.println("unknown relOp: $relOp")
+                exitProcess(1)
+            }
+        }
+
+        return "call i32 @compareStr(i8* ${left.toLlvm()}, i8* ${right.toLlvm()}, i32 $relOpCode)"
     }
 
     override fun binaryOpName(): String {

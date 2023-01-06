@@ -11,9 +11,11 @@ target triple = "x86_64-pc-linux-gnu"
 @.str = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
 @stdout = external local_unnamed_addr global %struct._IO_FILE*, align 8
 @.str.3 = private unnamed_addr constant [3 x i8] c"%d\00", align 1
+@stdin = external local_unnamed_addr global %struct._IO_FILE*, align 8
 @.str.5 = private unnamed_addr constant [56 x i8] c"runtime error: compareStr got unknown compare sign: %d\0A\00", align 1
 @str = private unnamed_addr constant [14 x i8] c"runtime error\00", align 1
-@str.6 = private unnamed_addr constant [33 x i8] c"runtime error: readString failed\00", align 1
+@str.7 = private unnamed_addr constant [33 x i8] c"runtime error: readString failed\00", align 1
+@str.8 = private unnamed_addr constant [29 x i8] c"runtime error: addStr failed\00", align 1
 
 ; Function Attrs: nofree nounwind sspstrong uwtable
 define dso_local void @printInt(i32 noundef %0) local_unnamed_addr #0 {
@@ -35,7 +37,7 @@ define dso_local void @error() local_unnamed_addr #2 {
   %1 = tail call i32 @puts(i8* nonnull dereferenceable(1) getelementptr inbounds ([14 x i8], [14 x i8]* @str, i64 0, i64 0))
   %2 = load %struct._IO_FILE*, %struct._IO_FILE** @stdout, align 8, !tbaa !5
   %3 = tail call i32 @fflush(%struct._IO_FILE* noundef %2)
-  tail call void @exit(i32 noundef 1) #9
+  tail call void @exit(i32 noundef 1) #12
   unreachable
 }
 
@@ -49,10 +51,10 @@ declare void @exit(i32 noundef) local_unnamed_addr #3
 define dso_local i32 @readInt() local_unnamed_addr #0 {
   %1 = alloca i32, align 4
   %2 = bitcast i32* %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* nonnull %2) #10
+  call void @llvm.lifetime.start.p0i8(i64 4, i8* nonnull %2) #13
   %3 = call i32 (i8*, ...) @__isoc99_scanf(i8* noundef getelementptr inbounds ([3 x i8], [3 x i8]* @.str.3, i64 0, i64 0), i32* noundef nonnull %1)
   %4 = load i32, i32* %1, align 4, !tbaa !9
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* nonnull %2) #10
+  call void @llvm.lifetime.end.p0i8(i64 4, i8* nonnull %2) #13
   ret i32 %4
 }
 
@@ -70,40 +72,39 @@ define dso_local i8* @readString() local_unnamed_addr #5 {
   %1 = alloca i8*, align 8
   %2 = alloca i64, align 8
   %3 = bitcast i8** %1 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* nonnull %3) #10
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* nonnull %3) #13
   store i8* null, i8** %1, align 8, !tbaa !5
   %4 = bitcast i64* %2 to i8*
-  call void @llvm.lifetime.start.p0i8(i64 8, i8* nonnull %4) #10
+  call void @llvm.lifetime.start.p0i8(i64 8, i8* nonnull %4) #13
   store i64 0, i64* %2, align 8, !tbaa !11
-  %5 = load %struct._IO_FILE*, %struct._IO_FILE** @stdout, align 8, !tbaa !5
-  %6 = call i64 @getline(i8** noundef nonnull %1, i64* noundef nonnull %2, %struct._IO_FILE* noundef %5) #10
+  %5 = load %struct._IO_FILE*, %struct._IO_FILE** @stdin, align 8, !tbaa !5
+  %6 = call i64 @getline(i8** noundef nonnull %1, i64* noundef nonnull %2, %struct._IO_FILE* noundef %5) #13
   %7 = icmp slt i64 %6, 0
   br i1 %7, label %8, label %12
 
 8:                                                ; preds = %0
-  %9 = call i32 @puts(i8* nonnull dereferenceable(1) getelementptr inbounds ([33 x i8], [33 x i8]* @str.6, i64 0, i64 0))
+  %9 = call i32 @puts(i8* nonnull dereferenceable(1) getelementptr inbounds ([33 x i8], [33 x i8]* @str.7, i64 0, i64 0))
   %10 = load %struct._IO_FILE*, %struct._IO_FILE** @stdout, align 8, !tbaa !5
   %11 = call i32 @fflush(%struct._IO_FILE* noundef %10)
-  call void @exit(i32 noundef 1) #9
+  call void @exit(i32 noundef 1) #12
   unreachable
 
 12:                                               ; preds = %0
   %13 = load i8*, i8** %1, align 8, !tbaa !5
-  %14 = load i64, i64* %2, align 8, !tbaa !11
-  %15 = add i64 %14, -1
-  %16 = getelementptr inbounds i8, i8* %13, i64 %15
-  store i8 0, i8* %16, align 1, !tbaa !13
-  %17 = load i8*, i8** %1, align 8, !tbaa !5
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* nonnull %4) #10
-  call void @llvm.lifetime.end.p0i8(i64 8, i8* nonnull %3) #10
-  ret i8* %17
+  %14 = add nsw i64 %6, -1
+  %15 = getelementptr inbounds i8, i8* %13, i64 %14
+  store i8 0, i8* %15, align 1, !tbaa !13
+  %16 = load i8*, i8** %1, align 8, !tbaa !5
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* nonnull %4) #13
+  call void @llvm.lifetime.end.p0i8(i64 8, i8* nonnull %3) #13
+  ret i8* %16
 }
 
 declare i64 @getline(i8** noundef, i64* noundef, %struct._IO_FILE* noundef) local_unnamed_addr #6
 
 ; Function Attrs: nounwind sspstrong uwtable
 define dso_local i32 @compareStr(i8* nocapture noundef readonly %0, i8* nocapture noundef readonly %1, i32 noundef %2) local_unnamed_addr #5 {
-  %4 = tail call i32 @strcmp(i8* noundef nonnull dereferenceable(1) %0, i8* noundef nonnull dereferenceable(1) %1) #11
+  %4 = tail call i32 @strcmp(i8* noundef nonnull dereferenceable(1) %0, i8* noundef nonnull dereferenceable(1) %1) #14
   switch i32 %2, label %17 [
     i32 1, label %5
     i32 2, label %7
@@ -141,7 +142,7 @@ define dso_local i32 @compareStr(i8* nocapture noundef readonly %0, i8* nocaptur
   %18 = tail call i32 (i8*, ...) @printf(i8* noundef nonnull dereferenceable(1) getelementptr inbounds ([56 x i8], [56 x i8]* @.str.5, i64 0, i64 0), i32 noundef %2)
   %19 = load %struct._IO_FILE*, %struct._IO_FILE** @stdout, align 8, !tbaa !5
   %20 = tail call i32 @fflush(%struct._IO_FILE* noundef %19)
-  tail call void @exit(i32 noundef 1) #9
+  tail call void @exit(i32 noundef 1) #12
   unreachable
 
 21:                                               ; preds = %15, %13, %11, %9, %7, %5
@@ -153,8 +154,43 @@ define dso_local i32 @compareStr(i8* nocapture noundef readonly %0, i8* nocaptur
 ; Function Attrs: argmemonly mustprogress nofree nounwind readonly willreturn
 declare i32 @strcmp(i8* nocapture noundef, i8* nocapture noundef) local_unnamed_addr #7
 
+; Function Attrs: nounwind sspstrong uwtable
+define dso_local i8* @addStr(i8* nocapture noundef readonly %0, i8* nocapture noundef readonly %1) local_unnamed_addr #5 {
+  %3 = tail call i64 @strlen(i8* noundef nonnull dereferenceable(1) %0) #14
+  %4 = tail call i64 @strlen(i8* noundef nonnull dereferenceable(1) %1) #14
+  %5 = add i64 %4, %3
+  %6 = tail call noalias i8* @malloc(i64 noundef %5) #13
+  %7 = icmp eq i8* %6, null
+  br i1 %7, label %8, label %12
+
+8:                                                ; preds = %2
+  %9 = tail call i32 @puts(i8* nonnull dereferenceable(1) getelementptr inbounds ([29 x i8], [29 x i8]* @str.8, i64 0, i64 0))
+  %10 = load %struct._IO_FILE*, %struct._IO_FILE** @stdout, align 8, !tbaa !5
+  %11 = tail call i32 @fflush(%struct._IO_FILE* noundef %10)
+  tail call void @exit(i32 noundef 1) #12
+  unreachable
+
+12:                                               ; preds = %2
+  %13 = add i64 %3, 1
+  tail call void @llvm.memcpy.p0i8.p0i8.i64(i8* nonnull align 1 %6, i8* align 1 %0, i64 %13, i1 false)
+  %14 = tail call i8* @strcat(i8* noundef nonnull %6, i8* noundef nonnull dereferenceable(1) %1) #13
+  ret i8* %6
+}
+
+; Function Attrs: argmemonly mustprogress nofree nounwind readonly willreturn
+declare i64 @strlen(i8* nocapture noundef) local_unnamed_addr #7
+
+; Function Attrs: inaccessiblememonly mustprogress nofree nounwind willreturn
+declare noalias noundef i8* @malloc(i64 noundef) local_unnamed_addr #8
+
+; Function Attrs: argmemonly mustprogress nofree nounwind willreturn
+declare void @llvm.memcpy.p0i8.p0i8.i64(i8* noalias nocapture writeonly, i8* noalias nocapture readonly, i64, i1 immarg) #9
+
+; Function Attrs: argmemonly mustprogress nofree nounwind willreturn
+declare i8* @strcat(i8* noalias noundef returned, i8* noalias nocapture noundef readonly) local_unnamed_addr #10
+
 ; Function Attrs: nofree nounwind
-declare noundef i32 @puts(i8* nocapture noundef readonly) local_unnamed_addr #8
+declare noundef i32 @puts(i8* nocapture noundef readonly) local_unnamed_addr #11
 
 attributes #0 = { nofree nounwind sspstrong uwtable "frame-pointer"="none" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 attributes #1 = { nofree nounwind "frame-pointer"="none" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
@@ -164,10 +200,13 @@ attributes #4 = { argmemonly mustprogress nofree nosync nounwind willreturn }
 attributes #5 = { nounwind sspstrong uwtable "frame-pointer"="none" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 attributes #6 = { "frame-pointer"="none" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 attributes #7 = { argmemonly mustprogress nofree nounwind readonly willreturn "frame-pointer"="none" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
-attributes #8 = { nofree nounwind }
-attributes #9 = { noreturn nounwind }
-attributes #10 = { nounwind }
-attributes #11 = { nounwind readonly willreturn }
+attributes #8 = { inaccessiblememonly mustprogress nofree nounwind willreturn "frame-pointer"="none" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
+attributes #9 = { argmemonly mustprogress nofree nounwind willreturn }
+attributes #10 = { argmemonly mustprogress nofree nounwind willreturn "frame-pointer"="none" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
+attributes #11 = { nofree nounwind }
+attributes #12 = { noreturn nounwind }
+attributes #13 = { nounwind }
+attributes #14 = { nounwind readonly willreturn }
 
 !llvm.module.flags = !{!0, !1, !2, !3}
 !llvm.ident = !{!4}

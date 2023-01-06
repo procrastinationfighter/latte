@@ -59,8 +59,8 @@ fun main(args: Array<String>) {
         val commonFilename = args[0].substring(0, args[0].length - 4)
         val llvmOutputFilename = "$commonFilename.ll"
         File(llvmOutputFilename).writeText(llvmCode)
-        ProcessBuilder("llvm-as", "-o", "${commonFilename}.bc", llvmOutputFilename).start()
-        ProcessBuilder("llvm-link", "-o", "${commonFilename}.bc", "${commonFilename}.bc", args[1]).start()
+        ProcessBuilder("llvm-as", "-o", "${commonFilename}.bc", llvmOutputFilename).start().waitFor()
+        ProcessBuilder("llvm-link", "-o", "${commonFilename}.bc", "${commonFilename}.bc", args[1]).start().waitFor()
 
         exitProcess(0)
     } catch (e: LatteException) {

@@ -28,9 +28,8 @@ latc_llvm:
 
 lib/runtime.bc:
 	llvm-as -o lib/runtime.bc lib/runtime.ll
-	llc  --relocation-model=pic -o lib/runtime.s lib/runtime.bc
 
-clean: clear_antlr clear_mvn clear_llvm clear_java
+clean: clear_antlr clear_mvn clear_llvm clear_java clear_runtime
 
 clear_runtime:
 	rm lib/runtime.bc
