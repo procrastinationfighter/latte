@@ -176,9 +176,9 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 } else if (stmt.expr_ is ELitFalse) {
                     return
                 }
-                val block = currBlock
 
                 val cond = visitExpr(stmt.expr_)
+                val block = currBlock
                 val ifLabel = getNextLabel()
                 val continueLabel = getNextLabel()
                 block.endEnv = copyCurrEnv()
@@ -207,9 +207,9 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 } else if (stmt.expr_ is ELitFalse) {
                     visitStmt(stmt.stmt_2)
                 }
-                val block = currBlock
 
                 val cond = visitExpr(stmt.expr_)
+                val block = currBlock
                 val ifLabel = getNextLabel()
                 val elseLabel = getNextLabel()
                 val continueLabel = getNextLabel()
@@ -404,16 +404,8 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
 
     private fun visitExpr(expr: Expr): OpArgument {
         return when (expr) {
-            is EOr -> visitOr(expr)
-            is EAnd -> {
-                val left = visitExpr(expr.expr_1)
-                val right = visitExpr(expr.expr_2)
-                val reg = getNextRegistry()
-                currBlock.addOp(AndOp(reg, left, right))
-                currTypes[reg] = Bool()
-
-                return RegistryArg(reg, Bool())
-            }
+            is EOr -> visitOrAnd(expr.expr_1, expr.expr_2, true)
+            is EAnd -> visitOrAnd(expr.expr_1, expr.expr_2, false)
             is ERel -> {
                 val left = visitExpr(expr.expr_1)
                 val right = visitExpr(expr.expr_2)
@@ -516,29 +508,49 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         }
     }
 
-    private fun visitOr(expr: EOr): OpArgument {
-        val left = visitExpr(expr.expr_1)
-        // This must be evaluated lazily. If left was true, then don't evaluate right.
+    private fun visitOrAnd(expr_1: Expr, expr_2: Expr, isOr: Boolean): OpArgument {
+        val left = visitExpr(expr_1)
+        // This must be evaluated lazily.
+        // For OR: if left was true, then don't evaluate right.
+        // For AND otherwise
         val trueLabel = getNextLabel()
         val falseLabel = getNextLabel()
         val continueLabel = getNextLabel()
+
         currBlock.addOp(IfOp(left, trueLabel, falseLabel))
 
         val trueBlock = SSABlock(trueLabel, emptyList(), this)
-        trueBlock.addOp(JumpOp(continueLabel))
-
         val falseBlock = SSABlock(falseLabel, emptyList(), this)
         currBlock.addNext(trueBlock)
         currBlock.addNext(falseBlock)
-        currBlock = falseBlock
 
-        val right = visitExpr(expr.expr_2)
+        currBlock = if (isOr) {
+            trueBlock.addOp(JumpOp(continueLabel))
+            falseBlock
+        } else {
+            falseBlock.addOp(JumpOp(continueLabel))
+            trueBlock
+        }
+
+        val right = visitExpr(expr_2)
         val reg = getNextRegistry()
-        falseBlock.addOp(OrOp(reg, left, right))
-        falseBlock.addOp(JumpOp(continueLabel))
+        if (isOr) {
+            currBlock.addOp(OrOp(reg, left, right))
+        } else {
+            currBlock.addOp(AndOp(reg, left, right))
+        }
+        currBlock.addOp(JumpOp(continueLabel))
+
+        var trueResult: OpArgument = BoolArg(true)
+        var falseResult: OpArgument = RegistryArg(reg, Bool())
+
+        if (!isOr) {
+            trueResult = falseResult
+            falseResult = BoolArg(false)
+        }
 
         val phiReg = getNextRegistry()
-        val phi = Phi("", phiReg, mapOf(trueLabel to BoolArg(true), falseLabel to RegistryArg(reg, Bool())))
+        val phi = Phi("", phiReg, mapOf(trueLabel to trueResult, falseLabel to falseResult))
 
         val continueBlock = SSABlock(continueLabel, listOf(phi), this)
         currTypes[phiReg] = Bool()
