@@ -1,7 +1,7 @@
-compile: antlr-dir latc_llvm_opt lib/runtime.bc
+compile: antlr-dir latc_llvm_opt lib/runtime.bc latc
 	cd src && mvn -q compile assembly:single
 
-no-opt: antlr-dir latc_llvm_no_opt lib/runtime.bc
+no-opt: antlr-dir latc_llvm_no_opt lib/runtime.bc latc
 	cd src && mvn -q compile assembly:single
 
 antlr-dir: antlr-4.11.1-complete.jar
@@ -23,6 +23,11 @@ antlr-dir: antlr-4.11.1-complete.jar
 
 antlr-4.11.1-complete.jar:
 	wget https://www.antlr.org/download/antlr-4.11.1-complete.jar
+
+latc:
+	echo "#!/bin/bash" > latc
+	echo "java -jar src/target/latte-compiler-1.0-SNAPSHOT-jar-with-dependencies.jar \$$1 ./lib/runtime.bc --front" >> latc
+	chmod 744 latc
 
 latc_llvm_opt:
 	echo "#!/bin/bash" > latc_llvm

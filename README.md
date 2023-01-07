@@ -48,6 +48,7 @@ from here: https://www.antlr.org/download/antlr-4.11.1-complete.jar and place it
 than `students`, please add the path to bnfc binary to the `PATH` environmental variable)
 - build the project
 - create a script `latc_llvm` that runs the compiler
+- create a script `latc` that runs only the frontend
 
 To run the compiler, run `./latc_llvm INPUT` in the root directory,
 where `INPUT` is the input file with `.lat` extension.
