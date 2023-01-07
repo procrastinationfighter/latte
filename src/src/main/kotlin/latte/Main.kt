@@ -11,6 +11,7 @@ import latte.typecheck.TypecheckingVisitor
 import org.antlr.v4.runtime.CharStreams
 import org.antlr.v4.runtime.CommonTokenStream
 import java.io.File
+import java.lang.NumberFormatException
 import kotlin.system.exitProcess
 
 fun main(args: Array<String>) {
@@ -67,6 +68,10 @@ fun main(args: Array<String>) {
         System.err.println("ERROR")
         System.err.println("error at (${e.line},${e.column}): " + e.message)
         exitProcess(1)
+    } catch (n: NumberFormatException) {
+        System.err.println("An integer literal is too big." +
+                "Only literals from -2,147,483,647 to 2,147,483,647 are allowed." +
+                "Caught exception: ${n.message}")
     } catch (r: RuntimeException) {
         System.err.println("INTERNAL ERROR: ${r.message}")
         exitProcess(1)
