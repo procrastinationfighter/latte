@@ -40,6 +40,13 @@ The frontend accepts all suggested extensions: arrays, structs and objects.
 
 The backend does not support any language extension yet.
 
+## Fixes
+
+Bugs of frontend have been fixed in this version. In particular, grammar conflicts have been resolved.
+The only remaining conflicts are shift/reduce conflicts - one of them is the if/else conflict and the rest of them are analogous.
+
+One particular nasty problem came from the parser, where most binary operations like `+` failed in some cases. It has been fixed.
+
 ## Running
 
 To build, type `make` in the root directory. This should:
