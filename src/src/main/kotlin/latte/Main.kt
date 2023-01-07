@@ -77,7 +77,7 @@ fun main(args: Array<String>) {
                 "Only literals from -2,147,483,647 to 2,147,483,647 are allowed." +
                 "Caught exception: ${n.message}")
     } catch (r: RuntimeException) {
-        System.err.println("INTERNAL ERROR: ${r.message}")
+        System.err.println("INTERNAL ERROR: ${r.message}\n ${r.stackTraceToString()}")
         exitProcess(1)
     }
 }

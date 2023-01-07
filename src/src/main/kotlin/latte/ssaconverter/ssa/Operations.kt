@@ -275,9 +275,24 @@ abstract class BinaryOp(result: Int, var left: OpArgument, var right: OpArgument
 
     override fun opEquals(otherOp: Op): Boolean {
         val (otherLeft, otherRight) = if (otherOp is BinaryOp) Pair(otherOp.left, otherOp.right) else Pair(null, null)
-        return otherLeft != null && otherRight != null
-                && this::class == otherOp::class
-                && left.argEquals(otherLeft) && right.argEquals(otherRight)
+
+        return if (this::class == otherOp::class) {
+            (otherLeft != null && otherRight != null
+                    && left.argEquals(otherLeft) && right.argEquals(otherRight)
+                    && signOk(otherOp as BinaryOp))
+        } else {
+            false
+        }
+    }
+
+    private fun signOk(op: BinaryOp): Boolean {
+        return when (this) {
+            is latte.ssaconverter.ssa.AddOp -> op is latte.ssaconverter.ssa.AddOp && op.addOp::class == this.addOp::class
+            is MultiplicationOp -> op is MultiplicationOp && op.mulOp::class == this.mulOp::class
+            is RelationOp -> op is RelationOp && op.relOp::class == this.relOp::class
+            is StringRelationOp -> op is StringRelationOp && op.relOp::class == this.relOp::class
+            else -> true
+        }
     }
 
     override fun updateUsed(s: MutableSet<Int>) {
@@ -364,7 +379,8 @@ class AddStringOp(result: Int, var left: OpArgument, var right: OpArgument): Reg
     }
 
     override fun opEquals(otherOp: Op): Boolean {
-        return otherOp is AddStringOp && left.argEquals(otherOp.left) && right.argEquals(otherOp.right)
+        val x = otherOp is AddStringOp && left.argEquals(otherOp.left) && right.argEquals(otherOp.right)
+        return x
     }
 
     override fun updateUsed(s: MutableSet<Int>) {
@@ -398,6 +414,7 @@ class RelationOp(result: Int, left: OpArgument, right: OpArgument, val relOp: Re
     }
 }
 
+// TODO: not a binary op (conversion to llvm would fail)
 class StringRelationOp(result: Int, left: OpArgument, right: OpArgument, val relOp: RelOp): BinaryOp(result, left, right, Bool()) {
     override fun printOp(): String {
         return "${left.print()} STRCMP $relOp ${right.print()}"

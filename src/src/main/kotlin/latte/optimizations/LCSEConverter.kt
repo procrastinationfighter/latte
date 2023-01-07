@@ -52,8 +52,8 @@ class LCSEConverter(private val ssa: SSA) {
             op.reduce(replaceMap)
             for (j in 0 until i) {
                 val otherOp = ssaBlock.ops[j]
-                if (op.opEquals(otherOp)) {
-                    replaceMap[i] = otherOp.getReplacement()
+                if (op.opEquals(otherOp) && op is RegistryOp) {
+                    replaceMap[op.result.number] = otherOp.getReplacement()
                 }
             }
             op.updateUsed(used)
