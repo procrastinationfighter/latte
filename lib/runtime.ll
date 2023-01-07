@@ -124,7 +124,7 @@ define dso_local i8* @readString() local_unnamed_addr #4 {
 }
 
 ; Function Attrs: nounwind sspstrong uwtable
-define dso_local i32 @compare.Str(i8* nocapture noundef readonly %0, i8* nocapture noundef readonly %1, i32 noundef %2) local_unnamed_addr #4 {
+define dso_local i1 @compare.Str(i8* nocapture noundef readonly %0, i8* nocapture noundef readonly %1, i32 noundef %2) local_unnamed_addr #4 {
   %4 = tail call i32 @strcmp(i8* noundef nonnull dereferenceable(1) %0, i8* noundef nonnull dereferenceable(1) %1) #16
   switch i32 %2, label %17 [
     i32 1, label %5
@@ -168,8 +168,7 @@ define dso_local i32 @compare.Str(i8* nocapture noundef readonly %0, i8* nocaptu
 
 21:                                               ; preds = %15, %13, %11, %9, %7, %5
   %22 = phi i1 [ %16, %15 ], [ %14, %13 ], [ %12, %11 ], [ %10, %9 ], [ %8, %7 ], [ %6, %5 ]
-  %23 = zext i1 %22 to i32
-  ret i32 %23
+  ret i1 %22
 }
 
 ; Function Attrs: argmemonly mustprogress nofree nounwind readonly willreturn

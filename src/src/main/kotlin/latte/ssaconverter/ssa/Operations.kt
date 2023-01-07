@@ -434,7 +434,7 @@ class StringRelationOp(result: Int, left: OpArgument, right: OpArgument, val rel
             }
         }
 
-        return "call i32 @compare.Str(i8* ${left.toLlvm()}, i8* ${right.toLlvm()}, i32 $relOpCode)"
+        return "call i1 @compare.Str(i8* ${left.toLlvm()}, i8* ${right.toLlvm()}, i32 $relOpCode)"
     }
 
     override fun binaryOpName(): String {
