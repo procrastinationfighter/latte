@@ -25,6 +25,9 @@ fun main(args: Array<String>) {
     } else if (args.size < 2) {
         System.err.println("Directory to runtime.bc not provided")
         return
+    } else if (args.size >= 3 && args[2] != "--no-opt") {
+        System.err.println("Unknown option: ${args[3]}")
+        return
     }
 
     val input = File(args[0]).inputStream()
@@ -53,8 +56,11 @@ fun main(args: Array<String>) {
         val ssaConverter = SSAConverter(tree.result as Prog, definitions)
         val ssa = ssaConverter.convert()
 
-        val lcseConverter = LCSEConverter(ssa)
-        lcseConverter.optimize()
+        // Optimize only if flag is specified.
+        if (args.size < 3) {
+            val lcseConverter = LCSEConverter(ssa)
+            lcseConverter.optimize()
+        }
 
         val llvmConverter = LLVMConverter(ssa)
         val llvmCode = llvmConverter.convert()
