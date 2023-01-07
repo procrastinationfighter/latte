@@ -298,6 +298,10 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         // go 1 -> 3 -> 2 (calculate phis) -> 3 (calculate phis) -> 4 (calculate phis)
         // potential optimization: traverse firstly 2 and 3 with alternative versions of the functions
 
+        // fix for phi: run that two times
+        // first one estabilishes where to look at
+        // second one fixes
+
         // Labels
         val condLabel = getNextLabel()
         val bodyLabel = getNextLabel()
@@ -321,7 +325,6 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         val reg = visitExpr(stmt.expr_)
         condBlock.addOp(IfOp(reg, bodyLabel, continueLabel))
         condBlock.endEnv = copyCurrEnv()
-        block.addNext(condBlock)
         block.addOp(JumpOp(condLabel))
 
         // Body block
@@ -333,17 +336,30 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         visitStmt(stmt.stmt_)
         val finishBodyBlock = currBlock
         finishBodyBlock.addOp(JumpOp(condLabel))
-        finishBodyBlock.addNext(condBlock)
         finishBodyBlock.endEnv = copyCurrEnv()
-        nextRegistry = tempReg2
+
+        // Condition block, second try
+        // Update phis
+        restoreEnv(block)
+        val condPhi2 = getPhi(block, finishBodyBlock)
+        val condBlock2 = SSABlock(condLabel, condPhi2, this)
+        currBlock = condBlock2
+        val reg2 = visitExpr(stmt.expr_)
+        condBlock2.addOp(IfOp(reg2, bodyLabel, continueLabel))
+        condBlock2.endEnv = copyCurrEnv()
+        block.addNext(condBlock2)
+        block.addOp(JumpOp(condLabel))
+        block.addNext(condBlock2)
+        finishBodyBlock.addNext(condBlock2)
 
         // Continue block
-        restoreEnv(condBlock)
+        nextRegistry = tempReg2
+        restoreEnv(condBlock2)
         val continueBlock = SSABlock(continueLabel, emptyList(), this)
         currBlock = continueBlock
 
-        condBlock.addNext(continueBlock)
-        condBlock.addNext(bodyBlock)
+        condBlock2.addNext(continueBlock)
+        condBlock2.addNext(bodyBlock)
     }
 
     private fun getPhi(first: SSABlock, second: SSABlock): List<Phi> {
