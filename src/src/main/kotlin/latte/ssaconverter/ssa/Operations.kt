@@ -12,6 +12,8 @@ interface OpArgument {
     fun print(): String
     fun toLlvm(): String
     fun toLlvmType(): String
+
+    fun argEquals(o: OpArgument): Boolean
 }
 
 class RegistryArg(val number: Int, val type: Type): OpArgument {
@@ -26,6 +28,10 @@ class RegistryArg(val number: Int, val type: Type): OpArgument {
     override fun toLlvmType(): String {
         return typeToLlvm(type)
     }
+
+    override fun argEquals(o: OpArgument): Boolean {
+        return o is RegistryArg && number == o.number
+    }
 }
 
 class IntArg(val number: Int): OpArgument {
@@ -39,6 +45,10 @@ class IntArg(val number: Int): OpArgument {
 
     override fun toLlvmType(): String {
         return "i32"
+    }
+
+    override fun argEquals(o: OpArgument): Boolean {
+        return o is IntArg && number == o.number
     }
 }
 
@@ -58,6 +68,10 @@ class BoolArg(val b: Boolean): OpArgument {
     override fun toLlvmType(): String {
         return "i1"
     }
+
+    override fun argEquals(o: OpArgument): Boolean {
+        return o is BoolArg && b == o.b
+    }
 }
 
 // s is the name of the variable that contains the string
@@ -73,11 +87,23 @@ class StringArg(val s: String, val len: Int): OpArgument {
     override fun toLlvmType(): String {
         return "i8*"
     }
+
+    override fun argEquals(o: OpArgument): Boolean {
+        return o is StringArg && s == o.s
+    }
+
+
 }
 
 abstract class Op {
     abstract fun print()
     abstract fun toLlvm(): String
+    abstract fun reduce(replaceMap: MutableMap<Int, OpArgument>)
+    abstract fun opEquals(otherOp: Op): Boolean
+    abstract fun getReplacement(): OpArgument
+
+    abstract fun updateUsed(s: MutableSet<Int>)
+    abstract fun updateAssigned(s: MutableSet<Int>)
 }
 abstract class RegistryOp(val result: RegistryArg): Op() {
     override fun print() {
@@ -94,7 +120,15 @@ abstract class RegistryOp(val result: RegistryArg): Op() {
         }
     }
 
-    abstract fun opToLlvm(): String;
+    abstract fun opToLlvm(): String
+
+    override fun getReplacement(): OpArgument {
+        return result
+    }
+
+    override fun updateAssigned(s: MutableSet<Int>) {
+        s.add(result.number)
+    }
 }
 
 class PhiOp(val phi: Phi): RegistryOp(RegistryArg(phi.registry, phi.getType())) {
@@ -106,9 +140,38 @@ class PhiOp(val phi: Phi): RegistryOp(RegistryArg(phi.registry, phi.getType())) 
         val branches = phi.values.map { "[${it.value.toLlvm()}, %${it.key}]" }.joinToString(separator = ", ")
         return "phi ${typeToLlvm(phi.getType())} $branches"
     }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        phi.values = phi.values.mapValues {
+            val v = it.value
+            val newV = if (v is RegistryOp && replaceMap[v.result.number] != null) {
+                replaceMap[v.result.number]!!
+            } else {
+                v
+            }
+
+            newV
+        }
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        return if (otherOp is PhiOp) {
+            phi.values == otherOp.phi.values
+        } else {
+            false
+        }
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        for (pair in phi.values) {
+            if (pair.value is RegistryArg) {
+                s.add((pair.value as RegistryArg).number)
+            }
+        }
+    }
 }
 
-class AppOp(result: Int, val name: String, val type: Type, val args: List<OpArgument>): RegistryOp(RegistryArg(result, type)) {
+class AppOp(result: Int, val name: String, val type: Type, var args: List<OpArgument>): RegistryOp(RegistryArg(result, type)) {
     override fun printOp(): String {
         val argsStr = args.joinToString(separator = ", ") { it.print() }
         return "call $name ($argsStr): ${typeToString(type)}"
@@ -118,9 +181,55 @@ class AppOp(result: Int, val name: String, val type: Type, val args: List<OpArgu
         val argsStr = args.joinToString(separator = ", ") { "${typeToLlvm(argToType(it))} ${it.toLlvm()}" }
         return "call ${typeToLlvm(type)} @$name($argsStr)"
     }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        // Function calls are never equal to each other because of in-out operations.
+        return false
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        for (arg in args) {
+            if (arg is RegistryArg) {
+                s.add(arg.number)
+            }
+        }
+    }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        args = args.map {
+            if (it is RegistryOp) {
+                replaceMap[it.result.number] ?: it
+            } else {
+                it
+            }
+        }
+    }
 }
 
-abstract class UnaryOp(result: Int, val arg: OpArgument, type: Type): RegistryOp(RegistryArg(result, type))
+abstract class UnaryOp(result: Int, var arg: OpArgument, type: Type): RegistryOp(RegistryArg(result, type)) {
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        if (arg is RegistryArg) {
+            val x = replaceMap[(arg as RegistryArg).number]
+            if (x != null) {
+                arg = x
+            }
+        }
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        val otherArg = if (otherOp is UnaryOp) otherOp.arg else null
+
+        return otherArg != null
+                && this::class == otherOp::class
+                && arg.argEquals(otherArg)
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        if (arg is RegistryArg) {
+            s.add((arg as RegistryArg).number)
+        }
+    }
+}
 
 class NotOp(result: Int, arg: OpArgument): UnaryOp(result, arg, Bool()) {
     override fun printOp(): String {
@@ -141,12 +250,45 @@ class NegOp(result: Int, arg: OpArgument): UnaryOp(result, arg, latte.Absyn.Int(
     }
 }
 
-abstract class BinaryOp(result: Int, val left: OpArgument, val right: OpArgument, type: Type): RegistryOp(RegistryArg(result, type)) {
+abstract class BinaryOp(result: Int, var left: OpArgument, var right: OpArgument, type: Type): RegistryOp(RegistryArg(result, type)) {
     override fun opToLlvm(): String {
         return "${binaryOpName()} ${left.toLlvmType()} ${left.toLlvm()}, ${right.toLlvm()}"
     }
 
     abstract fun binaryOpName(): String
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        if (left is RegistryArg) {
+            val x = replaceMap[(left as RegistryArg).number]
+            if (x != null) {
+                left = x
+            }
+        }
+
+        if (right is RegistryArg) {
+            val x = replaceMap[(right as RegistryArg).number]
+            if (x != null) {
+                right = x
+            }
+        }
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        val (otherLeft, otherRight) = if (otherOp is BinaryOp) Pair(otherOp.left, otherOp.right) else Pair(null, null)
+        return otherLeft != null && otherRight != null
+                && this::class == otherOp::class
+                && left.argEquals(otherLeft) && right.argEquals(otherRight)
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        if (left is RegistryArg) {
+            s.add((left as RegistryArg).number)
+        }
+
+        if (right is RegistryArg) {
+            s.add((right as RegistryArg).number)
+        }
+    }
 }
 
 class AddOp(result: Int, left: OpArgument, right: OpArgument, val addOp: AddOp): BinaryOp(result, left, right, argToType(left)) {
@@ -196,13 +338,43 @@ class MultiplicationOp(result: Int, left: OpArgument, right: OpArgument, val mul
         }
     }
 }
-class AddStringOp(result: Int, val left: OpArgument, val right: OpArgument): RegistryOp(RegistryArg(result, Str())) {
+class AddStringOp(result: Int, var left: OpArgument, var right: OpArgument): RegistryOp(RegistryArg(result, Str())) {
     override fun printOp(): String {
         return "${left.print()} ++ ${right.print()}"
     }
 
     override fun opToLlvm(): String {
         return "call i8* @addStr(i8* ${left.toLlvm()}, i8* ${right.toLlvm()})"
+    }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        if (left is RegistryArg) {
+            val x = replaceMap[(left as RegistryArg).number]
+            if (x != null) {
+                left = x
+            }
+        }
+
+        if (right is RegistryArg) {
+            val x = replaceMap[(right as RegistryArg).number]
+            if (x != null) {
+                right = x
+            }
+        }
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        return otherOp is AddStringOp && left.argEquals(otherOp.left) && right.argEquals(otherOp.right)
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        if (left is RegistryArg) {
+            s.add((left as RegistryArg).number)
+        }
+
+        if (right is RegistryArg) {
+            s.add((right as RegistryArg).number)
+        }
     }
 }
 
@@ -261,9 +433,23 @@ class ReturnVoidOp: Op() {
     override fun toLlvm(): String {
         return "ret void"
     }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {}
+
+    override fun opEquals(otherOp: Op): Boolean {
+        return false
+    }
+
+    override fun getReplacement(): OpArgument {
+        throw RuntimeException("return void operations can't be equal")
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {}
+
+    override fun updateAssigned(s: MutableSet<Int>) {}
 }
 
-class ReturnOp(val type: Type, val arg: OpArgument): Op() {
+class ReturnOp(val type: Type, var arg: OpArgument): Op() {
     override fun print() {
         println("return ${arg.print()}: ${typeToString(type)}")
     }
@@ -271,9 +457,34 @@ class ReturnOp(val type: Type, val arg: OpArgument): Op() {
     override fun toLlvm(): String {
         return "ret ${typeToLlvm(type)} ${arg.toLlvm()}"
     }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        if (arg is RegistryArg ) {
+            val x = replaceMap[(arg as RegistryArg).number]
+            if (x != null) {
+                arg = x
+            }
+        }
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        return false
+    }
+
+    override fun getReplacement(): OpArgument {
+        throw RuntimeException("return operations can't be equal")
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        if (arg is RegistryArg) {
+            s.add((arg as RegistryArg).number)
+        }
+    }
+
+    override fun updateAssigned(s: MutableSet<Int>) {}
 }
 
-class IfOp(val cond: OpArgument, val label1: String, val label2: String): Op() {
+class IfOp(var cond: OpArgument, val label1: String, val label2: String): Op() {
     override fun print() {
         println("if ${cond.print()} then $label1 else $label2")
     }
@@ -281,8 +492,33 @@ class IfOp(val cond: OpArgument, val label1: String, val label2: String): Op() {
     override fun toLlvm(): String {
         return "br ${cond.toLlvmType()} ${cond.toLlvm()}, label %$label1, label %$label2"
     }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        if (cond is RegistryArg) {
+            val x = replaceMap[(cond as RegistryArg).number]
+            if (x != null) {
+                cond = x
+            }
+        }
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        return false
+    }
+
+    override fun getReplacement(): OpArgument {
+        throw RuntimeException("if ops can't be equal")
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        if (cond is RegistryArg) {
+            s.add((cond as RegistryArg).number)
+        }
+    }
+
+    override fun updateAssigned(s: MutableSet<Int>) {}
 }
-class JumpOp(val label: String): Op() {
+class JumpOp(private val label: String): Op() {
     override fun print() {
         println("jump $label")
     }
@@ -290,6 +526,20 @@ class JumpOp(val label: String): Op() {
     override fun toLlvm(): String {
         return "br label %$label"
     }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {}
+
+    override fun opEquals(otherOp: Op): Boolean {
+        return false
+    }
+
+    override fun getReplacement(): OpArgument {
+        throw RuntimeException("jump op can't be compared")
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {}
+
+    override fun updateAssigned(s: MutableSet<Int>) {}
 }
 
 class UnreachableOp: Op() {
@@ -300,4 +550,18 @@ class UnreachableOp: Op() {
     override fun toLlvm(): String {
         return "unreachable"
     }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {}
+
+    override fun opEquals(otherOp: Op): Boolean {
+        return false
+    }
+
+    override fun getReplacement(): OpArgument {
+        throw RuntimeException("unreachable op can't be equal")
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {}
+
+    override fun updateAssigned(s: MutableSet<Int>) {}
 }
