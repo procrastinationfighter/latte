@@ -291,3 +291,13 @@ class JumpOp(val label: String): Op() {
         return "br label %$label"
     }
 }
+
+class UnreachableOp: Op() {
+    override fun print() {
+        println("unreachable")
+    }
+
+    override fun toLlvm(): String {
+        return "unreachable"
+    }
+}

@@ -2,10 +2,7 @@ package latte.llvmconverter
 
 import latte.Absyn.*
 import latte.common.typeToString
-import latte.ssaconverter.ssa.ReturnVoidOp
-import latte.ssaconverter.ssa.SSA
-import latte.ssaconverter.ssa.SSABlock
-import latte.ssaconverter.ssa.SSAFun
+import latte.ssaconverter.ssa.*
 
 fun typeToLlvm(type: Type): String {
     return when(type) {
@@ -67,7 +64,8 @@ class LLVMConverter(private val ssa: SSA) {
             if (funType is Void) {
                 ops.add(ReturnVoidOp().toLlvm())
             } else {
-                // An empty block that should be skipped.
+                ops.add(UnreachableOp().toLlvm())
+                blocks.add("${block.label}:\n  " + ops.joinToString(separator = "\n  "))
                 return
             }
         } else if (!block.returned && !block.ended) {
