@@ -543,14 +543,18 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
 
         var trueResult: OpArgument = BoolArg(true)
         var falseResult: OpArgument = RegistryArg(reg, Bool())
+        var actualTrueLabel = trueLabel
+        var actualFalseLabel = currBlock.label
 
         if (!isOr) {
             trueResult = falseResult
             falseResult = BoolArg(false)
+            actualTrueLabel = currBlock.label
+            actualFalseLabel = falseLabel
         }
 
         val phiReg = getNextRegistry()
-        val phi = Phi("", phiReg, mapOf(trueLabel to trueResult, falseLabel to falseResult))
+        val phi = Phi("", phiReg, mapOf(actualTrueLabel to trueResult, actualFalseLabel to falseResult))
 
         val continueBlock = SSABlock(continueLabel, listOf(phi), this)
         currTypes[phiReg] = Bool()
