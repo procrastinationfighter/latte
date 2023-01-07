@@ -1,9 +1,6 @@
 package latte.optimizations
 
-import latte.ssaconverter.ssa.OpArgument
-import latte.ssaconverter.ssa.SSA
-import latte.ssaconverter.ssa.SSABlock
-import latte.ssaconverter.ssa.SSAFun
+import latte.ssaconverter.ssa.*
 
 class LCSEConverter(private val ssa: SSA) {
 
@@ -30,7 +27,15 @@ class LCSEConverter(private val ssa: SSA) {
     }
 
     private fun removeCode(block: SSABlock) {
-        TODO("Not yet implemented")
+        for (i in (0 until block.ops.size).reversed()) {
+            val currOp = block.ops[i]
+            // Don't remove function calls, because they can have side effects.
+            if (currOp is RegistryOp && currOp !is AppOp) {
+                if (toRemove.contains(currOp.result.number)) {
+                    block.ops.removeAt(i)
+                }
+            }
+        }
     }
 
     private fun optimizeFun(f: SSAFun) {

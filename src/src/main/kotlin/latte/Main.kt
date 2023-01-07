@@ -3,6 +3,7 @@ package latte
 import latte.Absyn.Prog
 import latte.common.LatteException
 import latte.llvmconverter.LLVMConverter
+import latte.optimizations.LCSEConverter
 import latte.parse.ErrorListener
 import latte.returnchecker.ReturnCheckerVisitor
 import latte.ssaconverter.SSAConverter
@@ -51,6 +52,9 @@ fun main(args: Array<String>) {
 
         val ssaConverter = SSAConverter(tree.result as Prog, definitions)
         val ssa = ssaConverter.convert()
+
+        val lcseConverter = LCSEConverter(ssa)
+        lcseConverter.optimize()
 
         val llvmConverter = LLVMConverter(ssa)
         val llvmCode = llvmConverter.convert()
