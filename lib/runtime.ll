@@ -11,11 +11,11 @@ target triple = "x86_64-pc-linux-gnu"
 @.str = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
 @stdout = external local_unnamed_addr global %struct._IO_FILE*, align 8
 @stdin = external local_unnamed_addr global %struct._IO_FILE*, align 8
-@.str.5 = private unnamed_addr constant [56 x i8] c"runtime error: compareStr got unknown compare sign: %d\0A\00", align 1
+@.str.5 = private unnamed_addr constant [57 x i8] c"runtime error: compare.Str got unknown compare sign: %d\0A\00", align 1
 @str = private unnamed_addr constant [14 x i8] c"runtime error\00", align 1
 @str.7 = private unnamed_addr constant [30 x i8] c"runtime error: readInt failed\00", align 1
 @str.8 = private unnamed_addr constant [33 x i8] c"runtime error: readString failed\00", align 1
-@str.9 = private unnamed_addr constant [29 x i8] c"runtime error: addStr failed\00", align 1
+@str.9 = private unnamed_addr constant [30 x i8] c"runtime error: add.Str failed\00", align 1
 
 ; Function Attrs: nofree nounwind sspstrong uwtable
 define dso_local void @printInt(i32 noundef %0) local_unnamed_addr #0 {
@@ -124,7 +124,7 @@ define dso_local i8* @readString() local_unnamed_addr #4 {
 }
 
 ; Function Attrs: nounwind sspstrong uwtable
-define dso_local i32 @compareStr(i8* nocapture noundef readonly %0, i8* nocapture noundef readonly %1, i32 noundef %2) local_unnamed_addr #4 {
+define dso_local i32 @compare.Str(i8* nocapture noundef readonly %0, i8* nocapture noundef readonly %1, i32 noundef %2) local_unnamed_addr #4 {
   %4 = tail call i32 @strcmp(i8* noundef nonnull dereferenceable(1) %0, i8* noundef nonnull dereferenceable(1) %1) #16
   switch i32 %2, label %17 [
     i32 1, label %5
@@ -160,7 +160,7 @@ define dso_local i32 @compareStr(i8* nocapture noundef readonly %0, i8* nocaptur
   br label %21
 
 17:                                               ; preds = %3
-  %18 = tail call i32 (i8*, ...) @printf(i8* noundef nonnull dereferenceable(1) getelementptr inbounds ([56 x i8], [56 x i8]* @.str.5, i64 0, i64 0), i32 noundef %2)
+  %18 = tail call i32 (i8*, ...) @printf(i8* noundef nonnull dereferenceable(1) getelementptr inbounds ([57 x i8], [57 x i8]* @.str.5, i64 0, i64 0), i32 noundef %2)
   %19 = load %struct._IO_FILE*, %struct._IO_FILE** @stdout, align 8, !tbaa !5
   %20 = tail call i32 @fflush(%struct._IO_FILE* noundef %19)
   tail call void @exit(i32 noundef 1) #14
@@ -176,7 +176,7 @@ define dso_local i32 @compareStr(i8* nocapture noundef readonly %0, i8* nocaptur
 declare i32 @strcmp(i8* nocapture noundef, i8* nocapture noundef) local_unnamed_addr #8
 
 ; Function Attrs: nounwind sspstrong uwtable
-define dso_local i8* @addStr(i8* nocapture noundef readonly %0, i8* nocapture noundef readonly %1) local_unnamed_addr #4 {
+define dso_local i8* @add.Str(i8* nocapture noundef readonly %0, i8* nocapture noundef readonly %1) local_unnamed_addr #4 {
   %3 = tail call i64 @strlen(i8* noundef nonnull dereferenceable(1) %0) #16
   %4 = tail call i64 @strlen(i8* noundef nonnull dereferenceable(1) %1) #16
   %5 = add i64 %3, 1
@@ -186,7 +186,7 @@ define dso_local i8* @addStr(i8* nocapture noundef readonly %0, i8* nocapture no
   br i1 %8, label %9, label %13
 
 9:                                                ; preds = %2
-  %10 = tail call i32 @puts(i8* nonnull dereferenceable(1) getelementptr inbounds ([29 x i8], [29 x i8]* @str.9, i64 0, i64 0))
+  %10 = tail call i32 @puts(i8* nonnull dereferenceable(1) getelementptr inbounds ([30 x i8], [30 x i8]* @str.9, i64 0, i64 0))
   %11 = load %struct._IO_FILE*, %struct._IO_FILE** @stdout, align 8, !tbaa !5
   %12 = tail call i32 @fflush(%struct._IO_FILE* noundef %11)
   tail call void @exit(i32 noundef 1) #14

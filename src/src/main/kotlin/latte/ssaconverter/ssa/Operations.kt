@@ -359,7 +359,7 @@ class AddStringOp(result: Int, var left: OpArgument, var right: OpArgument): Reg
     }
 
     override fun opToLlvm(): String {
-        return "call i8* @addStr(i8* ${left.toLlvm()}, i8* ${right.toLlvm()})"
+        return "call i8* @add.Str(i8* ${left.toLlvm()}, i8* ${right.toLlvm()})"
     }
 
     override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
@@ -434,7 +434,7 @@ class StringRelationOp(result: Int, left: OpArgument, right: OpArgument, val rel
             }
         }
 
-        return "call i32 @compareStr(i8* ${left.toLlvm()}, i8* ${right.toLlvm()}, i32 $relOpCode)"
+        return "call i32 @compare.Str(i8* ${left.toLlvm()}, i8* ${right.toLlvm()}, i32 $relOpCode)"
     }
 
     override fun binaryOpName(): String {

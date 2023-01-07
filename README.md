@@ -14,6 +14,8 @@ The compiler was written in Kotlin, using ANTLR4 for parsing (which has code gen
 To build the project, Maven was used.
 
 Additional file `runtime.ll` with built-in latte functions has been generated using `clang`, basing on code in C.
+Besides defining standard functions for Latte, this file also defines two functions: `add.Str` and `compare.Str` that
+are used for concatenating and comparing strings.
 
 ## File structure 
 
