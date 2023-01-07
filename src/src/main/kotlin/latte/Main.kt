@@ -79,6 +79,7 @@ fun main(args: Array<String>) {
         System.err.println("error at (${e.line},${e.column}): " + e.message)
         exitProcess(1)
     } catch (n: NumberFormatException) {
+        System.err.println("ERROR")
         System.err.println("An integer literal is too big." +
                 "Only literals from -2,147,483,647 to 2,147,483,647 are allowed." +
                 "Caught exception: ${n.message}")

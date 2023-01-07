@@ -1,11 +1,19 @@
-# Latc - compiler for Latte
+# Latc_llvm - compiler for Latte
 
-As for now, the compiler consists only of the frontend (parsing + semantic analysis).
+As for now, the compiler does the following steps:
+
+1.frontend (parsing + semantic correctness checks)
+2.converting into SSA (with Phi variables)
+3.optimizing SSA structure (LCSE + removing dead code)
+4.generating LLVM code
+5.assembling and linking generated LLVM code into a single `.bc` file
 
 ## Used tools and libraries
 
 The compiler was written in Kotlin, using ANTLR4 for parsing (which has code generated in Java).
 To build the project, Maven was used.
+
+Additional file `runtime.ll` with built-in latte functions has been generated using `clang`, basing on code in C.
 
 ## File structure 
 
@@ -14,9 +22,21 @@ Directory `src/src/main/java` contains automatically generated code for parsing.
 Root directory contains a `Makefile`, Latte's modified grammar written in BNFC format
 and a simple script for testing.
 
-## Implemented extensions
+## Implemented optimizations
+
+The compiler currently:
+
+- uses Phi instructions instead of `alloca`
+- performs LCSE optimizations on generated SSA structure
+- removes dead code (by removing unused operations different from function calls)
+
+There will be more optimizations added in the next iteration.
+
+## Implemented language extensions
 
 The frontend accepts all suggested extensions: arrays, structs and objects.
+
+The backend does not support any language extension yet.
 
 ## Running
 
@@ -27,14 +47,26 @@ from here: https://www.antlr.org/download/antlr-4.11.1-complete.jar and place it
 - generate Java code (this requires `bnfc`, if you're running this on a different machine
 than `students`, please add the path to bnfc binary to the `PATH` environmental variable)
 - build the project
-- create a script `latc` that runs the compiler
+- create a script `latc_llvm` that runs the compiler
 
-To run the compiler, run `./latc INPUT` where `INPUT` is the input file with `.lat` extension.
+To run the compiler, run `./latc_llvm INPUT` in the root directory,
+where `INPUT` is the input file with `.lat` extension.
 
-If the compilation should go to the next phase, the compiler will print `OK\n`
-on stderr and return `0`. If the compilation failed, the compiler will print
+If the compilation succeeded, the compiler will print `OK\n`
+on stderr and compile the program. If the compilation failed, the compiler will print
 `ERROR\n` and the first error message on stderr and return `1`.
 
-The script `test.sh` checks if all tests in a directory terminate with given return code.
-Example usage: `./test.sh latc lattests/good 0` where `latc` is the compiler script,
-`lattests/good` is the directory and `0` is the return code.
+For a correct input file `foo/bar/example.lat`, the compiler will generate file `foo/bar/example.bc`
+which can be run using `lli foo/bar/example.bc`. 
+
+To correctly compile the project, programs `llvm-link` and `llvm-as` must be located in one of directories specified by `PATH` environmental variable.
+
+### Turning off optimizations
+
+By default, the compiler runs using all optimizations. To turn them off, build the compiler with `make no-opt` command.
+
+## Special cases
+
+- int type corresponds to `i32` type in LLVM
+- memory allocated for string input and concatenation does not get freed
+- number literals can be in range from `-2147483647` to `2147483647`
