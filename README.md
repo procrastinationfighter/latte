@@ -80,3 +80,29 @@ By default, the compiler runs using all optimizations. To turn them off, build t
 - int type corresponds to `i32` type in LLVM
 - memory allocated for string input and concatenation does not get freed
 - number literals can be in range from `-2147483647` to `2147483647`
+
+
+## Update 23.01.2023
+
+### Bugfixes
+
+The following bugs have been removed:
+
+#### Optimization of `if(true)`, `if(false)`, `while(true)` and `while(false)`
+
+A missing return statement caused incorrect code generation in these cases - the block that should be generated,
+was generated, but after that the whole statement was generated anyway.
+
+#### Nested SSA blocks
+
+SSA code was wrongly generated for some cases where the SSA blocks were "nested", e.g. when a lazy boolean expression
+was used in a loop's condition or when there were nested if statements. For example, such expression:
+```
+if (a) {
+  if (b) {
+    printInt(2);
+  }
+}
+```
+
+generated a block structure, where after the inner `if` block, there was a block that wasn't jumping anywhere.

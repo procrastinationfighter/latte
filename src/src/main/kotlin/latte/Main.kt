@@ -60,6 +60,8 @@ fun main(args: Array<String>) {
 
         val ssaConverter = SSAConverter(tree.result as Prog, definitions)
         val ssa = ssaConverter.convert()
+        // use ssa.print() for debug purposes
+        // ssa.print()
 
         // Optimize only if flag is specified.
         if (args.size < 3) {
