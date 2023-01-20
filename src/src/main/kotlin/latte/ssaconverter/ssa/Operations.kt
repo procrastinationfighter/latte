@@ -3,6 +3,7 @@ package latte.ssaconverter.ssa
 import latte.Absyn.*
 import latte.Absyn.AddOp
 import latte.common.typeToString
+import latte.llvmconverter.classNameToLlvm
 import latte.llvmconverter.typeToLlvm
 import latte.ssaconverter.argToType
 import kotlin.system.exitProcess
@@ -130,7 +131,7 @@ abstract class RegistryOp(val result: RegistryArg): Op() {
     }
 }
 
-class GetClassVarOp(result: Int, val className: String, var classLoc: OpArgument, val varName: String, varType: Type) : RegistryOp(
+class GetClassVarOp(result: Int, val className: String, var classLoc: OpArgument, val varName: Int, varType: Type) : RegistryOp(
     RegistryArg(result, varType)
 ) {
     override fun printOp(): String {
@@ -138,7 +139,8 @@ class GetClassVarOp(result: Int, val className: String, var classLoc: OpArgument
     }
 
     override fun opToLlvm(): String {
-        TODO("Not yet implemented")
+        val c = classNameToLlvm(className)
+        return "getelementptr $c, $c* ${classLoc.toLlvm()}, i32 0, i32 $varName"
     }
 
     override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
@@ -624,7 +626,8 @@ class StoreOp(val varType: Type, var arg: OpArgument, val loc: Int) : Op() {
     }
 
     override fun toLlvm(): String {
-        TODO("Not yet implemented")
+        val t = typeToLlvm(varType)
+        return "store $t, $t* ${arg.toLlvm()}"
     }
 
     override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {

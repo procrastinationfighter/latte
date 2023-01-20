@@ -6,6 +6,7 @@ import latte.common.typeToString
 import latte.ssaconverter.ssa.*
 import latte.ssaconverter.ssa.AddOp
 import latte.typecheck.unexpectedErrorExit
+import java.util.*
 import kotlin.system.exitProcess
 
 fun argToType(arg: OpArgument): Type {
@@ -133,7 +134,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 }
             }
         }
-        ssa.addClass(def.ident_, SSAClass(memberVariables.toMap()))
+        ssa.addClass(def.ident_, SSAClass(memberVariables.toMap(), Optional.empty()))
     }
 
     private fun visitFnDef(fnDef: FnDef) {
@@ -310,8 +311,9 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
 
                 val reg2 = visitExpr(stmt.expr_2)
                 val varType = getClassVarType(classType.ident_, stmt.ident_)
+                val varOrder = definitions.classes[classType.ident_]!!.fieldsOrder[stmt.ident_]!!
 
-                currBlock.addOp(GetClassVarOp(regVal, classType.ident_, reg1, stmt.ident_, varType))
+                currBlock.addOp(GetClassVarOp(regVal, classType.ident_, reg1, varOrder, varType))
                 currBlock.addOp(StoreOp(varType, reg2, regVal))
             }
             is For -> TODO("extension: for")

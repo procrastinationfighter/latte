@@ -15,9 +15,11 @@ class FuncDef(val returnType: Type, val args: ListArg)
 class ClassDef(val parent: Optional<String>) {
     val variables: HashMap<String, Type> = HashMap()
     val methods: HashMap<String, FuncDef> = HashMap()
+    val fieldsOrder: HashMap<String, Int> = HashMap()
 
     constructor(parent: Optional<String>, defs: ListClassDefContext?) : this(parent) {
         var classDefs = defs
+        var i = 0
         while (classDefs?.classDef() != null) {
             val classDef = classDefs.classDef()
             val def = classDef.result
@@ -37,6 +39,8 @@ class ClassDef(val parent: Optional<String>) {
                 if (variables.put(varDef.ident_, varDef.type_) != null) {
                     throw LatteException("redefinition of class member variable", classDef.start.line, classDef.start.charPositionInLine)
                 }
+                fieldsOrder[varDef.ident_] = i
+                i++
             }
 
             classDefs = classDefs.listClassDef()

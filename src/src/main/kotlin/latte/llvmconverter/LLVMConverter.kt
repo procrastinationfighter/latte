@@ -14,6 +14,10 @@ fun typeToLlvm(type: Type): String {
     }
 }
 
+fun classNameToLlvm(name: String): String {
+    return "%Class.$name"
+}
+
 class LLVMConverter(private val ssa: SSA) {
 
     private fun getExternalFuns(): String {
@@ -35,9 +39,14 @@ class LLVMConverter(private val ssa: SSA) {
 
     fun convert(): String {
         val strings = ssa.strings.map { "@${it.value} = internal constant ${strToLlvm(it.key)}" }.joinToString(separator="\n")
+        val classes = ssa.classDefs.map { classToStr(it.key, it.value) }.joinToString(separator="\n")
         val functions = ssa.defs.map { funToStr(it.value) }
         val external = getExternalFuns()
         return functions.joinToString(separator = "\n", prefix = "$external\n$strings\n")
+    }
+
+    private fun classToStr(name: String, c: SSAClass): String {
+        return "${classNameToLlvm(name)} = { ${c.varsToLlvm()} }"
     }
 
     private fun funToStr(f: SSAFun): String {
