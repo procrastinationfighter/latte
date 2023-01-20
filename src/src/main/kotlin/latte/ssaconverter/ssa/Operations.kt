@@ -693,6 +693,7 @@ class StoreOp(val varType: Type, var arg: OpArgument, val loc: Int) : Op() {
         if (arg is RegistryArg) {
             s.add((arg as RegistryArg).number)
         }
+        s.add(loc)
     }
 
     override fun updateAssigned(s: MutableSet<Int>) {

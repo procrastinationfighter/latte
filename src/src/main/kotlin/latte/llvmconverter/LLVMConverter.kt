@@ -10,6 +10,7 @@ fun typeToLlvm(type: Type): String {
         is Str -> "i8*"
         is Bool -> "i1"
         is Void -> "void"
+        is Class -> "%Class.${type.ident_}*"
         else -> throw RuntimeException("type not supported in typeToLlvm: ${typeToString(type)}")
     }
 }
