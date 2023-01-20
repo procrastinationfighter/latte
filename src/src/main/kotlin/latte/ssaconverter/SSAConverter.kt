@@ -15,7 +15,18 @@ fun argToType(arg: OpArgument): Type {
         is BoolArg -> Bool()
         is IntArg -> Int()
         is StringArg -> Str()
+        is NullArg -> Class("")
         else -> TODO("argToType not implemented for $arg")
+    }
+}
+
+fun getTypeDefaultValue(type: Type): OpArgument {
+    return when (type) {
+        is latte.Absyn.Int -> IntArg(0)
+        is Str -> StringArg("emptystr", 1)
+        is Bool -> BoolArg(false)
+        is Class -> NullArg()
+        else -> TODO("default type not implemented for $type")
     }
 }
 
@@ -135,7 +146,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             }
         }
         val d = definitions.classes[def.ident_]!!
-        ssa.addClass(def.ident_, SSAClass(memberVariables.toMap(), Optional.empty(), d.typesStr))
+        ssa.addClass(def.ident_, SSAClass(def.ident_, memberVariables.toMap(), Optional.empty(), d.typesStr, d.fieldsOrder))
     }
 
     private fun visitFnDef(fnDef: FnDef) {
@@ -460,15 +471,6 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         }
     }
 
-    private fun getTypeDefaultValue(type: Type): OpArgument {
-        return when (type) {
-            is latte.Absyn.Int -> IntArg(0)
-            is Str -> StringArg("empty", 1)
-            is Bool -> BoolArg(false)
-            else -> TODO("default type not implemented for $type")
-        }
-    }
-
     private fun visitExpr(expr: Expr): OpArgument {
         return when (expr) {
             is EOr -> visitOrAnd(expr.expr_1, expr.expr_2, true)
@@ -577,7 +579,8 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 // allocate
                 val newReg = getNextRegistry()
                 currBlock.addOp(AllocateOp(newReg, RegistryArg(classSize, Int()), expr.type_.ident_))
-                // TODO: initialize
+                // initialize
+                currBlock.addOp(ZeroInitClassOp(newReg, expr.type_.ident_))
 
                 RegistryArg(newReg, expr.type_)
             }

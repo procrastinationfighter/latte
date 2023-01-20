@@ -95,6 +95,25 @@ class StringArg(val s: String, val len: Int): OpArgument {
 
 }
 
+class NullArg: OpArgument {
+    override fun print(): String {
+        return "null"
+    }
+
+    override fun toLlvm(): String {
+        return "null"
+    }
+
+    override fun toLlvmType(): String {
+        return "ptr"
+    }
+
+    override fun argEquals(o: OpArgument): Boolean {
+        return o is NullArg
+    }
+
+}
+
 abstract class Op {
     abstract fun print()
     abstract fun toLlvm(): String
@@ -762,6 +781,37 @@ class GetClassSizeOp(val className: String, val classSize: Int, val dummyRegistr
     override fun updateAssigned(s: MutableSet<Int>) {
         s.add(dummyRegistry)
         s.add(classSize)
+    }
+
+}
+
+class ZeroInitClassOp(val reg: Int, val className: String) : Op() {
+    override fun print() {
+        println("zeroinit $className %$reg")
+    }
+
+    override fun toLlvm(): String {
+        return "call void @InitClass.$className(${classNameToLlvm(className)}* %reg$reg)"
+    }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        return
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        return false
+    }
+
+    override fun getReplacement(): OpArgument {
+        throw RuntimeException("zero init op can't replace")
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        s.add(reg)
+    }
+
+    override fun updateAssigned(s: MutableSet<Int>) {
+        return
     }
 
 }

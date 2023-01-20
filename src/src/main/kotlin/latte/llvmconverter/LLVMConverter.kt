@@ -2,6 +2,7 @@ package latte.llvmconverter
 
 import latte.Absyn.*
 import latte.common.typeToString
+import latte.ssaconverter.getTypeDefaultValue
 import latte.ssaconverter.ssa.*
 
 fun typeToLlvm(type: Type): String {
@@ -42,9 +43,10 @@ class LLVMConverter(private val ssa: SSA) {
     fun convert(): String {
         val strings = ssa.strings.map { "@${it.value} = internal constant ${strToLlvm(it.key)}" }.joinToString(separator="\n")
         val classes = ssa.classDefs.map { classToStr(it.key, it.value) }.joinToString(separator="\n")
+        val classesInits = ssa.classDefs.map { getClassInit(it.key, it.value) }.joinToString(separator="\n")
         val functions = ssa.defs.map { funToStr(it.value) }
         val external = getExternalFuns()
-        return functions.joinToString(separator = "\n", prefix = "$external\n\n$strings\n\n$classes\n\n")
+        return functions.joinToString(separator = "\n", prefix = "$external\n\n$strings\n\n$classes\n\n$classesInits\n\n")
     }
 
     private fun classToStr(name: String, c: SSAClass): String {
@@ -106,6 +108,29 @@ class LLVMConverter(private val ssa: SSA) {
 
     private fun arToLlvm(arg: Ar, reg: Int): String {
         return "${typeToLlvm(arg.type_)} %reg$reg"
+    }
+
+    private fun getClassInit(name: String, c: SSAClass): String {
+        val strings = mutableListOf<String>()
+        val typeName = classNameToLlvm(name)
+        strings.add("define void @InitClass.$name(${classNameToLlvm(name)}* %0) {")
+        var i = 1;
+
+        if (c.parentClass.isPresent) {
+            val parentName = c.parentClass.get().name
+            strings.add("%r$i = bitcast $typeName $0 to $parentName")
+            strings.add("call @InitClass.$parentName(${classNameToLlvm(parentName)}* %r$i)")
+            i++
+        }
+
+        for (p in c.variables) {
+            val t = typeToLlvm(p.value)
+            strings.add("%r$i = getelementptr $typeName, $typeName* %0, i32 0, i32 ${c.order[p.key]!!}")
+            strings.add("store $t ${getTypeDefaultValue(p.value).toLlvm()}, $t* %r$i")
+            i++
+        }
+
+        return strings.joinToString(separator="\n  ") + "  ret void\n}\n"
     }
 
 }
