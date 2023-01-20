@@ -60,6 +60,15 @@ class TopDefFetchingVisitor : latteParserBaseVisitor<LatteDefinitions>() {
             throw LatteException("main function can't take arguments", 0, 0)
         }
 
+        for (c in definitions.classes) {
+            if (c.value.parent.isPresent) {
+                c.value.setParent(definitions.classes[c.value.parent.get()]!!)
+            }
+        }
+        for (c in definitions.classes.values) {
+            c.calculateOrder()
+        }
+
         return this.definitions
     }
 

@@ -167,13 +167,16 @@ class GetClassVarOp(result: Int, val className: String, var classLoc: OpArgument
 
 }
 
-class AllocateOp(result: Int, var size: OpArgument): RegistryOp(RegistryArg(result, Int())) {
-    override fun printOp(): String {
-        return "alloc ${size.print()}"
+class AllocateOp(val result: Int, var size: OpArgument, val className: String): Op() {
+
+    override fun print() {
+        println("%$result = alloc ${size.print()}")
     }
 
-    override fun opToLlvm(): String {
-        return "call ptr @alloc.Mem(i32 ${size.toLlvm()})"
+    override fun toLlvm(): String {
+        val first = "%dumm$result = call i8* @alloc.Mem(i32 ${size.toLlvm()})"
+        val second = "%reg$result = bitcast i8* %dumm$result to ${classNameToLlvm(className)}*"
+        return "$first\n  $second"
     }
 
     override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
@@ -190,10 +193,18 @@ class AllocateOp(result: Int, var size: OpArgument): RegistryOp(RegistryArg(resu
         return false
     }
 
+    override fun getReplacement(): OpArgument {
+        throw RuntimeException("allocations can't be equal")
+    }
+
     override fun updateUsed(s: MutableSet<Int>) {
         if (size is RegistryArg) {
             s.add((size as RegistryArg).number)
         }
+    }
+
+    override fun updateAssigned(s: MutableSet<Int>) {
+        s.add(result)
     }
 
 }
@@ -657,7 +668,7 @@ class StoreOp(val varType: Type, var arg: OpArgument, val loc: Int) : Op() {
 
     override fun toLlvm(): String {
         val t = typeToLlvm(varType)
-        return "store $t, $t* ${arg.toLlvm()}"
+        return "store $t ${arg.toLlvm()}, $t* %reg$loc"
     }
 
     override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
@@ -666,8 +677,6 @@ class StoreOp(val varType: Type, var arg: OpArgument, val loc: Int) : Op() {
             if (r != null) {
                 arg = r
             }
-        } else {
-            throw RuntimeException("expected object to be in a registry, found $arg instead")
         }
     }
 
@@ -699,8 +708,8 @@ class GetClassSizeOp(val className: String, val classSize: Int, val dummyRegistr
 
     override fun toLlvm(): String {
         val typeName = classNameToLlvm(className)
-        val firstLine = "%${dummyRegistry} = getelementptr $typeName, $typeName* null, i32 1"
-        val secondLine = "ptrtoint $typeName* %${dummyRegistry} to i32"
+        val firstLine = "%reg$dummyRegistry = getelementptr $typeName, $typeName* null, i32 1"
+        val secondLine = "  %reg$classSize = ptrtoint $typeName* %reg$dummyRegistry to i32"
         return "$firstLine\n$secondLine"
     }
 

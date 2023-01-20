@@ -134,7 +134,8 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 }
             }
         }
-        ssa.addClass(def.ident_, SSAClass(memberVariables.toMap(), Optional.empty()))
+        val d = definitions.classes[def.ident_]!!
+        ssa.addClass(def.ident_, SSAClass(memberVariables.toMap(), Optional.empty(), d.typesStr))
     }
 
     private fun visitFnDef(fnDef: FnDef) {
@@ -575,7 +576,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 currBlock.addOp(GetClassSizeOp(expr.type_.ident_, classSize, getNextRegistry()))
                 // allocate
                 val newReg = getNextRegistry()
-                currBlock.addOp(AllocateOp(newReg, RegistryArg(classSize, Int())))
+                currBlock.addOp(AllocateOp(newReg, RegistryArg(classSize, Int()), expr.type_.ident_))
                 // TODO: initialize
 
                 RegistryArg(newReg, expr.type_)

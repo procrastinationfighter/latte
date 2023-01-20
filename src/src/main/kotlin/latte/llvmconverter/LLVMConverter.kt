@@ -28,7 +28,7 @@ class LLVMConverter(private val ssa: SSA) {
                 "declare i8* @readString()\n" +
                 "declare i1 @compare.Str(i8*, i8*, i32)\n" +
                 "declare i8* @add.Str(i8*, i8*)\n" +
-                "declare ptr @alloc.Mem(i32)"
+                "declare i8* @alloc.Mem(i32)"
     }
 
     private fun strToLlvm(str: String): String {
@@ -43,11 +43,11 @@ class LLVMConverter(private val ssa: SSA) {
         val classes = ssa.classDefs.map { classToStr(it.key, it.value) }.joinToString(separator="\n")
         val functions = ssa.defs.map { funToStr(it.value) }
         val external = getExternalFuns()
-        return functions.joinToString(separator = "\n", prefix = "$external\n$strings\n")
+        return functions.joinToString(separator = "\n", prefix = "$external\n\n$strings\n\n$classes\n\n")
     }
 
     private fun classToStr(name: String, c: SSAClass): String {
-        return "${classNameToLlvm(name)} = { ${c.varsToLlvm()} }"
+        return "${classNameToLlvm(name)} = type { ${c.varsToLlvm()} }"
     }
 
     private fun funToStr(f: SSAFun): String {
