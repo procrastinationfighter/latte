@@ -5,7 +5,6 @@ import latte.Absyn.AddOp
 import latte.common.typeToString
 import latte.llvmconverter.typeToLlvm
 import latte.ssaconverter.argToType
-import javax.swing.text.StyledEditorKit.BoldAction
 import kotlin.system.exitProcess
 
 interface OpArgument {
@@ -130,6 +129,42 @@ abstract class RegistryOp(val result: RegistryArg): Op() {
         s.add(result.number)
     }
 }
+
+class GetClassVarOp(result: Int, val className: String, var classLoc: OpArgument, val varName: String, varType: Type) : RegistryOp(
+    RegistryArg(result, varType)
+) {
+    override fun printOp(): String {
+        return "&$className.$varName"
+    }
+
+    override fun opToLlvm(): String {
+        TODO("Not yet implemented")
+    }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        if (classLoc is RegistryArg) {
+            val r = replaceMap[(classLoc as RegistryArg).number]
+            if (r != null) {
+                classLoc = r
+            }
+        } else {
+            throw RuntimeException("expected object to be in a registry, found $classLoc instead")
+        }
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        // Two getClassVar are equal if refer to the same object and the same variable
+        return otherOp is GetClassVarOp && otherOp.classLoc.argEquals(classLoc) && otherOp.varName == varName
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        if (classLoc is RegistryArg) {
+            s.add((classLoc as RegistryArg).number)
+        }
+    }
+
+}
+
 
 class PhiOp(val phi: Phi): RegistryOp(RegistryArg(phi.registry, phi.getType())) {
     override fun printOp(): String {
@@ -581,4 +616,45 @@ class UnreachableOp: Op() {
     override fun updateUsed(s: MutableSet<Int>) {}
 
     override fun updateAssigned(s: MutableSet<Int>) {}
+}
+
+class StoreOp(val varType: Type, var arg: OpArgument, val loc: Int) : Op() {
+    override fun print() {
+        println("store ${arg.print()} in %$loc *${typeToString(varType)}")
+    }
+
+    override fun toLlvm(): String {
+        TODO("Not yet implemented")
+    }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        if (arg is RegistryArg) {
+            val r = replaceMap[(arg as RegistryArg).number]
+            if (r != null) {
+                arg = r
+            }
+        } else {
+            throw RuntimeException("expected object to be in a registry, found $arg instead")
+        }
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        // Store operations modify the state, so can't be compared
+        return false
+    }
+
+    override fun getReplacement(): OpArgument {
+        throw RuntimeException("store operations can't be equal")
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        if (arg is RegistryArg) {
+            s.add((arg as RegistryArg).number)
+        }
+    }
+
+    override fun updateAssigned(s: MutableSet<Int>) {
+        // Does not assign to anything.
+        return
+    }
 }

@@ -2,6 +2,7 @@ package latte.ssaconverter
 
 import latte.Absyn.*
 import latte.common.LatteDefinitions
+import latte.common.typeToString
 import latte.ssaconverter.ssa.*
 import latte.ssaconverter.ssa.AddOp
 import latte.typecheck.unexpectedErrorExit
@@ -115,9 +116,24 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         unexpectedErrorExit(def == null, "topdef")
         when (def!!) {
             is FnDef -> visitFnDef(def as FnDef)
-            is TopClassDef -> TODO("extension: top class def")
+            is TopClassDef -> visitTopClass(def as TopClassDef)
             is SubClassDef -> TODO("extension: sub class def")
         }
+    }
+
+    private fun visitTopClass(def: TopClassDef) {
+        val memberVariables = mutableMapOf<String, Type>()
+        for (d in def.listclassdef_) {
+            when (d) {
+                is ClassVarDef -> {
+                    memberVariables[d.ident_] = d.type_
+                }
+                is ClassTopDef -> {
+                    TODO("extension: class methods")
+                }
+            }
+        }
+        ssa.addClass(def.ident_, SSAClass(memberVariables.toMap()))
     }
 
     private fun visitFnDef(fnDef: FnDef) {
@@ -166,7 +182,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                     }
                     currEnv.removeAt(currEnv.size - 1)
                 } else {
-                    TODO("unknown Block implementation")
+                    throw RuntimeException("unknown Block implementation")
                 }
             }
             is Cond -> {
@@ -275,7 +291,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                     is StringArg -> Str()
                     is BoolArg -> Bool()
                     is RegistryArg -> currTypes[reg.number]!!
-                    else -> TODO("unknown type in return")
+                    else -> throw RuntimeException("unknown type in return")
                 }
                 currBlock.addOp(ReturnOp(type, reg))
             }
@@ -284,11 +300,36 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             is While -> visitWhile(stmt)
 
             is ArrayAss -> TODO("extension: array ass")
-            is ClassAss -> TODO("extension: class ass")
+            is ClassAss -> {
+                val regVal = getNextRegistry()
+                val reg1 = visitExpr(stmt.expr_1)
+                val classType = argToType(reg1)
+                if (classType !is Class) {
+                    throw RuntimeException("expected class in assignment, found ${typeToString(classType)}")
+                }
+
+                val reg2 = visitExpr(stmt.expr_2)
+                val varType = getClassVarType(classType.ident_, stmt.ident_)
+
+                currBlock.addOp(GetClassVarOp(regVal, classType.ident_, reg1, stmt.ident_, varType))
+                currBlock.addOp(StoreOp(varType, reg2, regVal))
+            }
             is For -> TODO("extension: for")
             else -> TODO("unknown stmt")
         }
     }
+
+    private fun getClassVarType(classIdent: String, varIdent: String): Type {
+        val def = definitions.classes[classIdent]!!
+        val t = def.variables[varIdent]
+        return t
+            ?: if (def.parent.isPresent) {
+                getClassVarType(def.parent.get(), varIdent)
+            } else {
+                throw RuntimeException("variable $varIdent not found in class $classIdent")
+            }
+    }
+
 
     private fun visitWhile(stmt: While) {
         if (stmt.expr_ is ELitFalse) {

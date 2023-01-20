@@ -6,6 +6,7 @@ class SSA {
 
     private var nextStringNo = 1
     var defs = mutableMapOf<String, SSAFun>()
+    var classDefs = mutableMapOf<String, SSAClass>()
     var strings = mutableMapOf("" to "emptystr")
     fun print() {
         println("static strings:")
@@ -36,5 +37,9 @@ class SSA {
 
     fun addFun(fnDef: FnDef, block: SSABlock) {
         defs[fnDef.ident_] = SSAFun(fnDef.ident_, fnDef.type_, fnDef.listarg_, block)
+    }
+
+    fun addClass(name: String, def: SSAClass) {
+        classDefs[name] = def
     }
 }
