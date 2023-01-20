@@ -565,7 +565,21 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
 
             is ENull -> TODO("extension: lit null")
             is ENewArr -> TODO("extension: lit new arr")
-            is ENewObj -> TODO("extension: lit new obj")
+            is ENewObj -> {
+                if (expr.type_ !is Class) {
+                    throw RuntimeException("only classes can be instantiated with new without [], got ${typeToString(expr.type_)}")
+                }
+
+                // get class size
+                val classSize = getNextRegistry()
+                currBlock.addOp(GetClassSizeOp(expr.type_.ident_, classSize, getNextRegistry()))
+                // allocate
+                val newReg = getNextRegistry()
+                currBlock.addOp(AllocateOp(newReg, RegistryArg(classSize, Int())))
+                // TODO: initialize
+
+                RegistryArg(newReg, expr.type_)
+            }
             is EArray -> TODO("extension: array")
             is EClassCall -> TODO("extension: class call")
             is EClassVal -> TODO("extension: class val")

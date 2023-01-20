@@ -167,6 +167,36 @@ class GetClassVarOp(result: Int, val className: String, var classLoc: OpArgument
 
 }
 
+class AllocateOp(result: Int, var size: OpArgument): RegistryOp(RegistryArg(result, Int())) {
+    override fun printOp(): String {
+        return "alloc ${size.print()}"
+    }
+
+    override fun opToLlvm(): String {
+        TODO("Not yet implemented")
+    }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        if (size is RegistryArg) {
+            val a = replaceMap[(size as RegistryArg).number]
+            if (a != null) {
+                size = a
+            }
+        }
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        // Allocations aren't equal to each other, because they change the state.
+        return false
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        if (size is RegistryArg) {
+            s.add((size as RegistryArg).number)
+        }
+    }
+
+}
 
 class PhiOp(val phi: Phi): RegistryOp(RegistryArg(phi.registry, phi.getType())) {
     override fun printOp(): String {
@@ -660,4 +690,36 @@ class StoreOp(val varType: Type, var arg: OpArgument, val loc: Int) : Op() {
         // Does not assign to anything.
         return
     }
+}
+
+class GetClassSizeOp(val className: String, val classSize: Int, val dummyRegistry: Int) : Op() {
+    override fun print() {
+        println("%$classSize = getSizeOf $className")
+    }
+
+    override fun toLlvm(): String {
+        TODO("Not yet implemented")
+    }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        return
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        return otherOp is GetClassSizeOp && className == otherOp.className
+    }
+
+    override fun getReplacement(): OpArgument {
+        return RegistryArg(classSize, Int())
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        s.add(dummyRegistry)
+    }
+
+    override fun updateAssigned(s: MutableSet<Int>) {
+        s.add(dummyRegistry)
+        s.add(classSize)
+    }
+
 }
