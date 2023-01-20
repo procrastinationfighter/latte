@@ -27,7 +27,8 @@ class LLVMConverter(private val ssa: SSA) {
                 "declare i32 @readInt()\n" +
                 "declare i8* @readString()\n" +
                 "declare i1 @compare.Str(i8*, i8*, i32)\n" +
-                "declare i8* @add.Str(i8*, i8*)"
+                "declare i8* @add.Str(i8*, i8*)\n" +
+                "declare ptr @alloc.Mem(i32)"
     }
 
     private fun strToLlvm(str: String): String {

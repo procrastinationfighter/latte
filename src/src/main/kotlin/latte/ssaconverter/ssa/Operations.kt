@@ -173,7 +173,7 @@ class AllocateOp(result: Int, var size: OpArgument): RegistryOp(RegistryArg(resu
     }
 
     override fun opToLlvm(): String {
-        TODO("Not yet implemented")
+        return "call ptr @alloc.Mem(i32 ${size.toLlvm()})"
     }
 
     override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
@@ -698,7 +698,10 @@ class GetClassSizeOp(val className: String, val classSize: Int, val dummyRegistr
     }
 
     override fun toLlvm(): String {
-        TODO("Not yet implemented")
+        val typeName = classNameToLlvm(className)
+        val firstLine = "%${dummyRegistry} = getelementptr $typeName, $typeName* null, i32 1"
+        val secondLine = "ptrtoint $typeName* %${dummyRegistry} to i32"
+        return "$firstLine\n$secondLine"
     }
 
     override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
