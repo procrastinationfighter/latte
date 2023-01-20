@@ -167,6 +167,35 @@ class GetClassVarOp(result: Int, val className: String, var classLoc: OpArgument
 
 }
 
+class LoadClassVarOp(result: Int, val type: Type, var reg: Int): RegistryOp(RegistryArg(result, type)) {
+    override fun printOp(): String {
+        return "load ${typeToString(type)} $reg"
+    }
+
+    override fun opToLlvm(): String {
+        val type = typeToLlvm(type)
+        return "load $type, $type* %reg$reg"
+    }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        val a = replaceMap[reg]
+        if (a != null && a is RegistryArg) {
+            reg = a.number
+        }
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        // TODO: In general, we can't use LCSE to optimize these, because other functions can change this state
+        //  and it's too complicated to check it
+        return false
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        s.add(reg)
+    }
+
+}
+
 class AllocateOp(val result: Int, var size: OpArgument, val className: String): Op() {
 
     override fun print() {

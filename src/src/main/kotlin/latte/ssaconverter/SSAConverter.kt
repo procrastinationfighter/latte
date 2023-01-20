@@ -583,7 +583,19 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             }
             is EArray -> TODO("extension: array")
             is EClassCall -> TODO("extension: class call")
-            is EClassVal -> TODO("extension: class val")
+            is EClassVal -> {
+                val obj = visitExpr(expr.expr_)
+                val classReg = getNextRegistry()
+                val classType = argToType(obj) as Class
+                val valType = getClassVarType(classType.ident_, expr.ident_)
+                val order = definitions.classes[classType.ident_]!!.fieldsOrder[expr.ident_]!!
+                val valReg = getNextRegistry()
+
+                currBlock.addOp(GetClassVarOp(classReg, classType.ident_, obj, order, valType))
+                currBlock.addOp(LoadClassVarOp(valReg, valType, classReg))
+
+                return RegistryArg(valReg, valType)
+            }
             is ECast -> TODO("extension: cast")
             else -> TODO("unknown expr")
         }
