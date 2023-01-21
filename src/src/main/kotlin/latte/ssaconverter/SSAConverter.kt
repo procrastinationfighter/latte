@@ -31,6 +31,20 @@ fun getTypeDefaultValue(type: Type): OpArgument {
     }
 }
 
+fun getMemberVariables(definitions: LatteDefinitions, className: String): List<Triple<String, Type, Int>> {
+    val def = definitions.classes[className]!!
+    val thisVars = mutableListOf<Triple<String, Type, Int>>()
+    for (v in def.variables) {
+        thisVars.add(Triple(v.key, v.value, def.fieldsOrder[v.key]!!))
+    }
+
+    return if (def.parent.isPresent) {
+        getMemberVariables(definitions, def.parent.get()) + thisVars
+    } else {
+        thisVars
+    }
+}
+
 class SSAConverter(var program: Prog, private val definitions: LatteDefinitions) {
     private var ssa = SSA()
     private var nextRegistry = 0
@@ -168,20 +182,6 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         return memberVariables.toMap()
     }
 
-    private fun getMemberVariables(className: String): List<Triple<String, Type, Int>> {
-        val def = definitions.classes[className]!!
-        val thisVars = mutableListOf<Triple<String, Type, Int>>()
-        for (v in def.variables) {
-            thisVars.add(Triple(v.key, v.value, def.fieldsOrder[v.key]!!))
-        }
-
-        return if (def.parent.isPresent) {
-            getMemberVariables(def.parent.get()) + thisVars
-        } else {
-            thisVars
-        }
-    }
-
     private fun visitMethod(className: String, def: FnDef): String {
         prepFun()
         val classType = Class(className)
@@ -195,7 +195,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         currEnv.add(mutableMapOf())
         currBlock = SSABlock(getNextLabel(), emptyList(), this)
         val objRegistry = 0
-        val memberVariables = getMemberVariables(className)
+        val memberVariables = getMemberVariables(definitions, className)
         for (v in memberVariables) {
             val classReg = getNextRegistry()
             val valType = v.second

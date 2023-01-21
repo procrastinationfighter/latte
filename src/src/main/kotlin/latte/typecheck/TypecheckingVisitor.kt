@@ -11,6 +11,7 @@ import latte.latteParser.ExprContext
 import latte.latteParser.ListArgContext
 import latte.latteParser.TypeContext
 import latte.latteParserBaseVisitor
+import latte.ssaconverter.getMemberVariables
 import org.antlr.v4.runtime.Token
 import java.util.*
 import kotlin.collections.ArrayList
@@ -181,6 +182,13 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     }
 
     private fun visitFun(returnType: TypeContext, args: ListArgContext, block: BlockContext) {
+        if (currClass != null) {
+            currVariables.add(HashMap())
+            val vars = getMemberVariables(definitions, currClass!!)
+            for (v in vars) {
+                currVariables[currVariables.size - 1].put(v.first, v.second)
+            }
+        }
         currVariables.add(HashMap())
         visitListArg(args)
         typeExists(returnType)
