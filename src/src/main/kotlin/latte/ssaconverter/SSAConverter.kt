@@ -303,7 +303,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                     is IntArg -> Int()
                     is StringArg -> Str()
                     is BoolArg -> Bool()
-                    is RegistryArg -> currTypes[reg.number]!!
+                    is RegistryArg -> reg.type
                     else -> throw RuntimeException("unknown type in return")
                 }
                 currBlock.addOp(ReturnOp(type, reg))
@@ -566,7 +566,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             is EString -> StringArg(ssa.addStr(expr.string_), expr.string_.length + 1)
             is EVar -> getVarValue(expr.ident_)
 
-            is ENull -> TODO("extension: lit null")
+            is ENull -> return NullArg()
             is ENewArr -> TODO("extension: lit new arr")
             is ENewObj -> {
                 if (expr.type_ !is Class) {
@@ -581,6 +581,8 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 currBlock.addOp(AllocateOp(newReg, RegistryArg(classSize, Int()), expr.type_.ident_))
                 // initialize
                 currBlock.addOp(ZeroInitClassOp(newReg, expr.type_.ident_))
+
+                currTypes[newReg] = expr.type_
 
                 RegistryArg(newReg, expr.type_)
             }
@@ -597,9 +599,19 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 currBlock.addOp(GetClassVarOp(classReg, classType.ident_, obj, order, valType))
                 currBlock.addOp(LoadClassVarOp(valReg, valType, classReg))
 
+                currTypes[valReg] = valType
+
                 return RegistryArg(valReg, valType)
             }
-            is ECast -> TODO("extension: cast")
+            is ECast -> {
+                val result = visitExpr(expr.expr_)
+                val reg = getNextRegistry()
+                currBlock.addOp(ClassCastOp(reg, expr.ident_, result))
+
+                currTypes[reg] = Class(expr.ident_)
+
+                return RegistryArg(reg, Class(expr.ident_))
+            }
             else -> TODO("unknown expr")
         }
     }

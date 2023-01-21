@@ -105,7 +105,7 @@ class NullArg: OpArgument {
     }
 
     override fun toLlvmType(): String {
-        return "ptr"
+        return "i8*"
     }
 
     override fun argEquals(o: OpArgument): Boolean {
@@ -148,6 +148,36 @@ abstract class RegistryOp(val result: RegistryArg): Op() {
     override fun updateAssigned(s: MutableSet<Int>) {
         s.add(result.number)
     }
+}
+
+class ClassCastOp(result: Int, val className: String, var arg: OpArgument): RegistryOp(RegistryArg(result, Class(className))) {
+    override fun printOp(): String {
+        return "($className) ${arg.print()}"
+    }
+
+    override fun opToLlvm(): String {
+        return "bitcast ${arg.toLlvmType()}* ${arg.toLlvm()} to ${classNameToLlvm(className)}*"
+    }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        if (arg is RegistryArg) {
+            val a = replaceMap[(arg as RegistryArg).number]
+            if (a != null) {
+                arg = a
+            }
+        }
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        return otherOp is ClassCastOp && otherOp.arg.argEquals(arg)
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        if (arg is RegistryArg) {
+            s.add((arg as RegistryArg).number)
+        }
+    }
+
 }
 
 class GetClassVarOp(result: Int, val className: String, var classLoc: OpArgument, val varName: Int, varType: Type) : RegistryOp(
