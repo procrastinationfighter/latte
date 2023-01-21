@@ -62,7 +62,9 @@ class TopDefFetchingVisitor : latteParserBaseVisitor<LatteDefinitions>() {
 
         for (c in definitions.classes) {
             if (c.value.parent.isPresent) {
-                c.value.setParent(definitions.classes[c.value.parent.get()]!!)
+                val parent = definitions.classes[c.value.parent.get()]
+                    ?: throw LatteException("not found parent class ${c.value.parent.get()} for class ${c.key}", 0, 0)
+                c.value.setParent(parent)
             }
         }
         for (c in definitions.classes.values) {

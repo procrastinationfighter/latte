@@ -156,7 +156,7 @@ class ClassCastOp(result: Int, val className: String, var arg: OpArgument): Regi
     }
 
     override fun opToLlvm(): String {
-        return "bitcast ${arg.toLlvmType()}* ${arg.toLlvm()} to ${classNameToLlvm(className)}*"
+        return "bitcast ${arg.toLlvmType()} ${arg.toLlvm()} to ${classNameToLlvm(className)}*"
     }
 
     override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {

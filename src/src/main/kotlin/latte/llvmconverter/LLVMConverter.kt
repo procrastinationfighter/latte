@@ -118,8 +118,8 @@ class LLVMConverter(private val ssa: SSA) {
 
         if (c.parentClass.isPresent) {
             val parentName = c.parentClass.get().name
-            strings.add("%r$i = bitcast $typeName $0 to $parentName")
-            strings.add("call @InitClass.$parentName(${classNameToLlvm(parentName)}* %r$i)")
+            strings.add("%r$i = bitcast $typeName* %0 to ${classNameToLlvm(parentName)}*")
+            strings.add("call void @InitClass.$parentName(${classNameToLlvm(parentName)}* %r$i)")
             i++
         }
 

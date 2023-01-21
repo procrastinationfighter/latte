@@ -7,6 +7,7 @@ import latte.ssaconverter.ssa.*
 import latte.ssaconverter.ssa.AddOp
 import latte.typecheck.unexpectedErrorExit
 import java.util.*
+import kotlin.collections.ArrayList
 import kotlin.system.exitProcess
 
 fun argToType(arg: OpArgument): Type {
@@ -119,7 +120,21 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
     }
 
     private fun visitProgram() {
+        // Use queue to make sure that parent classes are visited before subclasses
+        val q: Queue<TopDef> = LinkedList()
         for (def in program.listtopdef_) {
+            q.add(def)
+        }
+
+        while (q.isNotEmpty()) {
+            val def = q.poll()
+            if (def is SubClassDef) {
+                if (!ssa.classDefs.contains(def.ident_2)) {
+                    q.add(def)
+                    continue
+                }
+            }
+
             visitTopDef(def)
         }
     }
@@ -129,13 +144,14 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         when (def!!) {
             is FnDef -> visitFnDef(def as FnDef)
             is TopClassDef -> visitTopClass(def as TopClassDef)
-            is SubClassDef -> TODO("extension: sub class def")
+            is SubClassDef -> visitSubClass(def as SubClassDef)
         }
     }
 
-    private fun visitTopClass(def: TopClassDef) {
+    private fun visitListClassDef(defs: ListClassDef): Map<String, Type> {
         val memberVariables = mutableMapOf<String, Type>()
-        for (d in def.listclassdef_) {
+
+        for (d in defs) {
             when (d) {
                 is ClassVarDef -> {
                     memberVariables[d.ident_] = d.type_
@@ -145,8 +161,21 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 }
             }
         }
+
+        return memberVariables.toMap()
+    }
+
+    private fun visitSubClass(def: SubClassDef) {
+        val memberVariables = visitListClassDef(def.listclassdef_)
+        val d = definitions.classes[def.ident_1]!!
+        val parent = ssa.classDefs[def.ident_2] ?: throw RuntimeException("class ${def.ident_2} not found as parent class of ${def.ident_1}")
+        ssa.addClass(def.ident_1, SSAClass(def.ident_1, memberVariables, Optional.of(parent), d.typesStr, d.fieldsOrder))
+    }
+
+    private fun visitTopClass(def: TopClassDef) {
+        val memberVariables = visitListClassDef(def.listclassdef_)
         val d = definitions.classes[def.ident_]!!
-        ssa.addClass(def.ident_, SSAClass(def.ident_, memberVariables.toMap(), Optional.empty(), d.typesStr, d.fieldsOrder))
+        ssa.addClass(def.ident_, SSAClass(def.ident_, memberVariables, Optional.empty(), d.typesStr, d.fieldsOrder))
     }
 
     private fun visitFnDef(fnDef: FnDef) {
@@ -323,7 +352,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
 
                 val reg2 = visitExpr(stmt.expr_2)
                 val varType = getClassVarType(classType.ident_, stmt.ident_)
-                val varOrder = definitions.classes[classType.ident_]!!.fieldsOrder[stmt.ident_]!!
+                val varOrder = getFieldOrder(classType.ident_, stmt.ident_)
 
                 currBlock.addOp(GetClassVarOp(regVal, classType.ident_, reg1, varOrder, varType))
                 currBlock.addOp(StoreOp(varType, reg2, regVal))
@@ -593,7 +622,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 val classReg = getNextRegistry()
                 val classType = argToType(obj) as Class
                 val valType = getClassVarType(classType.ident_, expr.ident_)
-                val order = definitions.classes[classType.ident_]!!.fieldsOrder[expr.ident_]!!
+                val order = getFieldOrder(classType.ident_, expr.ident_)
                 val valReg = getNextRegistry()
 
                 currBlock.addOp(GetClassVarOp(classReg, classType.ident_, obj, order, valType))
@@ -613,6 +642,16 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 return RegistryArg(reg, Class(expr.ident_))
             }
             else -> TODO("unknown expr")
+        }
+    }
+
+    private fun getFieldOrder(className: String, fieldName: String): Int {
+        val c = definitions.classes[className]!!
+        val a = c.fieldsOrder[fieldName]
+        return if (a == null) {
+            getFieldOrder(c.parent.get(), fieldName)
+        } else {
+            a
         }
     }
 
