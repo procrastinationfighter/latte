@@ -95,7 +95,7 @@ class StringArg(val s: String, val len: Int): OpArgument {
 
 }
 
-class NullArg: OpArgument {
+class NullArg(val type: String): OpArgument {
     override fun print(): String {
         return "null"
     }

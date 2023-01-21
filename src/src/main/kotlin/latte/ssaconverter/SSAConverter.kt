@@ -26,7 +26,7 @@ fun getTypeDefaultValue(type: Type): OpArgument {
         is latte.Absyn.Int -> IntArg(0)
         is Str -> StringArg("emptystr", 1)
         is Bool -> BoolArg(false)
-        is Class -> NullArg()
+        is Class -> NullArg(type.ident_)
         else -> TODO("default type not implemented for $type")
     }
 }
@@ -273,21 +273,71 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         return ssaBlock
     }
 
+    // Checks if right is a subclass of left, exclusively
+    private fun isSubclass(left: String, right: String): Boolean {
+        if (left == right) {
+            return false
+        }
+        var def = definitions.classes[right]
+        var currName = right
+        while (def!!.parent.isPresent) {
+            if (currName == left) {
+                return true
+            } else {
+                currName = def.parent.get()
+                def = definitions.classes[currName]
+            }
+        }
+
+        if (currName == left) {
+            return true
+        }
+
+        return false
+    }
+
     private fun visitStmt(stmt: Stmt) {
         when(stmt) {
             is Ass -> {
                 if (memberVariableVisited(stmt.ident_)) {
                     // TODO: adjust register if cast occured
                     val regVal = getNextRegistry()
-                    val reg2 = visitExpr(stmt.expr_)
+                    var reg2 = visitExpr(stmt.expr_)
 
                     val varType = getClassVarType(currClass.get(), stmt.ident_)
                     val varOrder = getFieldOrder(currClass.get(), stmt.ident_)
+
+                    // if casting, use bitcast
+                    if (argToType(reg2) is Class && isSubclass((varType as Class).ident_, (argToType(reg2) as Class).ident_ )) {
+                        val r = getNextRegistry()
+                        currBlock.addOp(ClassCastOp(r, varType.ident_, reg2))
+                        reg2 = RegistryArg(r, Class(varType.ident_))
+                    }
+
                     currBlock.addOp(GetClassVarOp(regVal, currClass.get(), RegistryArg(0, Class(currClass.get())), varOrder, varType))
                     currBlock.addOp(StoreOp(varType, reg2, regVal))
                     return
                 }
-                val res = visitExpr(stmt.expr_)
+                var res = visitExpr(stmt.expr_)
+                val resType = argToType(res)
+
+                // if casting, use bitcast
+                if (resType is Class) {
+                    val currVal = getVarValue(stmt.ident_)
+                    val varType = if (currVal is RegistryArg) {
+                        currTypes[currVal.number]!! as Class
+                    } else {
+                        // Must be null
+                        Class((currVal as NullArg).type)
+                    }
+
+                    if (isSubclass(varType.ident_, resType.ident_)) {
+                        val r = getNextRegistry()
+                        currBlock.addOp(ClassCastOp(r, varType.ident_, res))
+                        res = RegistryArg(r, Class(varType.ident_))
+                    }
+                }
+
                 changeVar(stmt.ident_, res)
 
                 if (!isVarFromThisBlock(stmt.ident_)) {
@@ -566,11 +616,32 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         for (item in listItem) {
             when (item) {
                 is Init -> {
-                    val expr = visitExpr(item.expr_)
+                    var expr = visitExpr(item.expr_)
+
+                    if (expr is RegistryArg && type is Class) {
+                        val exprClass = (expr.type as Class).ident_
+
+                        if (isSubclass(type.ident_, exprClass)) {
+                            val r = getNextRegistry()
+                            currBlock.addOp(ClassCastOp(r, type.ident_, expr))
+                            expr = RegistryArg(r, Class(type.ident_))
+                        }
+                    }
+
                     setVar(item.ident_, type, expr)
                 }
                 is NoInit -> {
                     setVar(item.ident_, type, getTypeDefaultValue(type))
+
+                    val e = when (type) {
+                        is latte.Absyn.Int -> ELitInt(0)
+                        is Str -> EString("emptystr")
+                        is Bool -> ELitFalse()
+                        is Class -> ECast(type.ident_, ENull())
+                        else -> TODO("default type not implemented for $type")
+                    }
+
+                    visitStmt(Ass(item.ident_, e))
                 }
                 else -> TODO("unknown item type")
             }
@@ -672,7 +743,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             is EString -> StringArg(ssa.addStr(expr.string_), expr.string_.length + 1)
             is EVar -> getVarValue(expr.ident_)
 
-            is ENull -> return NullArg()
+            is ENull -> return NullArg("")
             is ENewArr -> TODO("extension: lit new arr")
             is ENewObj -> {
                 if (expr.type_ !is Class) {
