@@ -182,13 +182,6 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     }
 
     private fun visitFun(returnType: TypeContext, args: ListArgContext, block: BlockContext) {
-        if (currClass != null) {
-            currVariables.add(HashMap())
-            val vars = getMemberVariables(definitions, currClass!!)
-            for (v in vars) {
-                currVariables[currVariables.size - 1].put(v.first, v.second)
-            }
-        }
         currVariables.add(HashMap())
         visitListArg(args)
         typeExists(returnType)

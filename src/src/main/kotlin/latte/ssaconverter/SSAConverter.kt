@@ -276,6 +276,17 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
     private fun visitStmt(stmt: Stmt) {
         when(stmt) {
             is Ass -> {
+                if (memberVariableVisited(stmt.ident_)) {
+                    // TODO: adjust register if cast occured
+                    val regVal = getNextRegistry()
+                    val reg2 = visitExpr(stmt.expr_)
+
+                    val varType = getClassVarType(currClass.get(), stmt.ident_)
+                    val varOrder = getFieldOrder(currClass.get(), stmt.ident_)
+                    currBlock.addOp(GetClassVarOp(regVal, currClass.get(), RegistryArg(0, Class(currClass.get())), varOrder, varType))
+                    currBlock.addOp(StoreOp(varType, reg2, regVal))
+                    return
+                }
                 val res = visitExpr(stmt.expr_)
                 changeVar(stmt.ident_, res)
 
@@ -427,6 +438,19 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             is For -> TODO("extension: for")
             else -> TODO("unknown stmt")
         }
+    }
+
+    private fun memberVariableVisited(name: String): Boolean {
+        var i = currEnv.size - 1
+        for (env in currEnv.reversed()) {
+            val r = env[name]
+            if (r != null) {
+                break
+            }
+            i--
+        }
+
+        return i == 1 && currClass.isPresent
     }
 
     private fun getClassVarType(classIdent: String, varIdent: String): Type {
@@ -684,13 +708,19 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             }
             is EArray -> TODO("extension: array")
             is EClassCall -> {
-                // TODO: if function is virtual, casting is needed
-                val obj = visitExpr(expr.expr_)
-                val args = listOf(obj) + visitListExpr(expr.listexpr_)
+                var obj = visitExpr(expr.expr_)
                 val c = argToType(obj) as Class
                 val method = getMethod(c.ident_, expr.ident_)
-                val methodName = "${c.ident_}.${expr.ident_}"
-                val type = method.returnType
+                val methodName = "${method.second}.${expr.ident_}"
+                val type = method.first.returnType
+                if (c.ident_ != method.second) {
+                    // Calling an inherited function
+                    val r = getNextRegistry()
+                    currBlock.addOp(ClassCastOp(r, method.second, obj))
+                    obj = RegistryArg(r, Class(method.second))
+                }
+
+                val args = listOf(obj) + visitListExpr(expr.listexpr_)
 
                 if (type is Void) {
                     // If void, don't assign to a registry
@@ -731,9 +761,14 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         }
     }
 
-    private fun getMethod(className: String, method: String): FuncDef {
+    private fun getMethod(className: String, method: String): Pair<FuncDef, String> {
         val c = definitions.classes[className]!!
-        return c.methods[method] ?: getMethod(c.parent.get(), method)
+        val m = c.methods[method]
+        return if (m != null) {
+            Pair(c.methods[method]!!, className)
+        } else {
+            getMethod(c.parent.get(), method)
+        }
     }
 
     private fun getFieldOrder(className: String, fieldName: String): Int {
