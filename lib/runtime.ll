@@ -177,7 +177,7 @@ define dso_local i32 @compareStr(i8* nocapture noundef readonly %0, i8* nocaptur
 declare i32 @strcmp(i8* nocapture noundef, i8* nocapture noundef) local_unnamed_addr #8
 
 ; Function Attrs: nounwind sspstrong uwtable
-define dso_local i8* @addStr(i8* nocapture noundef readonly %0, i8* nocapture noundef readonly %1) local_unnamed_addr #4 {
+define dso_local i8* @add.Str(i8* nocapture noundef readonly %0, i8* nocapture noundef readonly %1) local_unnamed_addr #4 {
   %3 = tail call i64 @strlen(i8* noundef nonnull dereferenceable(1) %0) #16
   %4 = tail call i64 @strlen(i8* noundef nonnull dereferenceable(1) %1) #16
   %5 = add i64 %3, 1

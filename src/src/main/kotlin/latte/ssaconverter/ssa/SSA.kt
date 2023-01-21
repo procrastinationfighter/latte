@@ -1,6 +1,9 @@
 package latte.ssaconverter.ssa
 
+import latte.Absyn.Ar
 import latte.Absyn.FnDef
+import latte.Absyn.ListArg
+import java.util.*
 
 class SSA {
 
@@ -35,8 +38,13 @@ class SSA {
         }
     }
 
-    fun addFun(fnDef: FnDef, block: SSABlock) {
-        defs[fnDef.ident_] = SSAFun(fnDef.ident_, fnDef.type_, fnDef.listarg_, block)
+    fun addFun(fnDef: FnDef, obj: Optional<Ar>, block: SSABlock, ident: String) {
+        val args = if (obj.isPresent) {
+            LinkedList(listOf(obj.get())) + fnDef.listarg_
+        } else {
+            fnDef.listarg_
+        }
+        defs[fnDef.ident_] = SSAFun(ident, fnDef.type_, args, block)
     }
 
     fun addClass(name: String, def: SSAClass) {

@@ -1,13 +1,13 @@
 package latte.ssaconverter
 
 import latte.Absyn.*
+import latte.common.FuncDef
 import latte.common.LatteDefinitions
 import latte.common.typeToString
 import latte.ssaconverter.ssa.*
 import latte.ssaconverter.ssa.AddOp
 import latte.typecheck.unexpectedErrorExit
 import java.util.*
-import kotlin.collections.ArrayList
 import kotlin.system.exitProcess
 
 fun argToType(arg: OpArgument): Type {
@@ -38,6 +38,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
     private var currEnv: MutableList<MutableMap<String, OpArgument>> = mutableListOf()
     private var currTypes = mutableMapOf<Int, Type>()
     private var currBlock = SSABlock("", emptyList(), this)
+    private var currClass = Optional.empty<String>()
 
     private fun copyCurrEnv(): List<Map<String, OpArgument>> {
         // TODO: Check if the list is deep copied
@@ -148,8 +149,9 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         }
     }
 
-    private fun visitListClassDef(defs: ListClassDef): Map<String, Type> {
+    private fun visitListClassDef(className: String, defs: ListClassDef): Map<String, Type> {
         val memberVariables = mutableMapOf<String, Type>()
+        val methods = mutableListOf<Pair<String, String>>()
 
         for (d in defs) {
             when (d) {
@@ -157,7 +159,8 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                     memberVariables[d.ident_] = d.type_
                 }
                 is ClassTopDef -> {
-                    TODO("extension: class methods")
+                    val top = d.topdef_ as FnDef
+                    methods.add(Pair(top.ident_, visitMethod(className, top)))
                 }
             }
         }
@@ -165,15 +168,79 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         return memberVariables.toMap()
     }
 
+    private fun getMemberVariables(className: String): List<Triple<String, Type, Int>> {
+        val def = definitions.classes[className]!!
+        val thisVars = mutableListOf<Triple<String, Type, Int>>()
+        for (v in def.variables) {
+            thisVars.add(Triple(v.key, v.value, def.fieldsOrder[v.key]!!))
+        }
+
+        return if (def.parent.isPresent) {
+            getMemberVariables(def.parent.get()) + thisVars
+        } else {
+            thisVars
+        }
+    }
+
+    private fun visitMethod(className: String, def: FnDef): String {
+        prepFun()
+        val classType = Class(className)
+        // Steps:
+        // 2. add env with args
+        val reg = getNextRegistry()
+        currTypes[reg] = classType
+        currEnv.add(mutableMapOf("self" to RegistryArg(reg, classType)))
+        visitArgs(def.listarg_)
+        // 1. add env with member variables
+        currEnv.add(mutableMapOf())
+        currBlock = SSABlock(getNextLabel(), emptyList(), this)
+        val objRegistry = 0
+        val memberVariables = getMemberVariables(className)
+        for (v in memberVariables) {
+            val classReg = getNextRegistry()
+            val valType = v.second
+            val order = v.third
+            val valReg = getNextRegistry()
+
+            currBlock.addOp(GetClassVarOp(classReg, classType.ident_, RegistryArg(objRegistry, classType), order, valType))
+            currBlock.addOp(LoadClassVarOp(valReg, valType, classReg))
+
+            setVar(v.first, v.second, RegistryArg(valReg, v.second))
+        }
+        // Change places of envs
+        val swap = currEnv[currEnv.size - 2]
+        currEnv[currEnv.size - 2] = currEnv[currEnv.size - 1]
+        currEnv[currEnv.size - 1] = swap
+
+        // 3. handle virtuals
+        // TODO: add bitcasting and change argument
+
+        // 4. visit method body
+        currEnv.add(mutableMapOf())
+        val methodFirstBlock = currBlock
+        for (stmt in (def.block_ as Blk).liststmt_) {
+            visitStmt(stmt)
+        }
+
+        ssa.addFun(def, Optional.of(Ar(Class(className), "self")), methodFirstBlock, "${className}.${def.ident_}")
+
+        // TODO: return name of respective class, not self
+        return className
+    }
+
     private fun visitSubClass(def: SubClassDef) {
-        val memberVariables = visitListClassDef(def.listclassdef_)
+        currClass = Optional.of(def.ident_1)
+        val memberVariables = visitListClassDef(def.ident_1, def.listclassdef_)
+        currClass = Optional.empty()
         val d = definitions.classes[def.ident_1]!!
         val parent = ssa.classDefs[def.ident_2] ?: throw RuntimeException("class ${def.ident_2} not found as parent class of ${def.ident_1}")
         ssa.addClass(def.ident_1, SSAClass(def.ident_1, memberVariables, Optional.of(parent), d.typesStr, d.fieldsOrder))
     }
 
     private fun visitTopClass(def: TopClassDef) {
-        val memberVariables = visitListClassDef(def.listclassdef_)
+        currClass = Optional.of(def.ident_)
+        val memberVariables = visitListClassDef(def.ident_, def.listclassdef_)
+        currClass = Optional.empty()
         val d = definitions.classes[def.ident_]!!
         ssa.addClass(def.ident_, SSAClass(def.ident_, memberVariables, Optional.empty(), d.typesStr, d.fieldsOrder))
     }
@@ -182,7 +249,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         prepFun()
         visitArgs(fnDef.listarg_)
         val block = visitBlock(fnDef.block_ as Blk)
-        ssa.addFun(fnDef, block)
+        ssa.addFun(fnDef, Optional.empty(), block, fnDef.ident_)
     }
 
     private fun visitArgs(args: ListArg) {
@@ -616,7 +683,26 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 RegistryArg(newReg, expr.type_)
             }
             is EArray -> TODO("extension: array")
-            is EClassCall -> TODO("extension: class call")
+            is EClassCall -> {
+                // TODO: if function is virtual, casting is needed
+                val obj = visitExpr(expr.expr_)
+                val args = listOf(obj) + visitListExpr(expr.listexpr_)
+                val c = argToType(obj) as Class
+                val method = getMethod(c.ident_, expr.ident_)
+                val methodName = "${c.ident_}.${expr.ident_}"
+                val type = method.returnType
+
+                if (type is Void) {
+                    // If void, don't assign to a registry
+                    currBlock.addOp(AppOp(0, methodName, type, args))
+                    return RegistryArg(0, type)
+                } else {
+                    val reg = getNextRegistry()
+                    currBlock.addOp(AppOp(reg, methodName, type, args))
+                    currTypes[reg] = type
+                    return RegistryArg(reg, type)
+                }
+            }
             is EClassVal -> {
                 val obj = visitExpr(expr.expr_)
                 val classReg = getNextRegistry()
@@ -643,6 +729,11 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             }
             else -> TODO("unknown expr")
         }
+    }
+
+    private fun getMethod(className: String, method: String): FuncDef {
+        val c = definitions.classes[className]!!
+        return c.methods[method] ?: getMethod(c.parent.get(), method)
     }
 
     private fun getFieldOrder(className: String, fieldName: String): Int {

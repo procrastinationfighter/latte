@@ -464,7 +464,15 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
     private fun visitAss(left: Token?, expr: ExprContext?) {
         unexpectedErrorExit(left == null || expr == null, "ass")
 
-        val varType = getVariableType(left!!)
+        if (left!!.text == "self") {
+            throw LatteException(
+                "can't assign to self",
+                left.line,
+                left.charPositionInLine,
+            )
+        }
+
+        val varType = getVariableType(left)
         val exprType = visitExpr(expr!!)
 
         if (!compareTypes(varType, exprType)) {
