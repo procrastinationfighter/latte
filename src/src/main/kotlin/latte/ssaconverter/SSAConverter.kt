@@ -384,25 +384,11 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             }
             is Decl -> visitListItem(stmt.type_, stmt.listitem_)
             is Decr -> {
-                val reg = getNextRegistry()
-                val regArg = RegistryArg(reg, Int())
-                currBlock.addOp(AddOp(reg, getVarValue(stmt.ident_), IntArg(1), Minus()))
-                changeVar(stmt.ident_, regArg)
-
-                if (!isVarFromThisBlock(stmt.ident_)) {
-                    currBlock.addModifiedVar(stmt.ident_, regArg)
-                }
+                visitStmt(Ass(stmt.ident_, EAdd(EVar(stmt.ident_), Minus(), ELitInt(1))))
             }
             is Empty -> {}
             is Incr -> {
-                val reg = getNextRegistry()
-                val regArg = RegistryArg(reg, Int())
-                currBlock.addOp(AddOp(reg, getVarValue(stmt.ident_), IntArg(1), Plus()))
-                changeVar(stmt.ident_, regArg)
-
-                if (!isVarFromThisBlock(stmt.ident_)) {
-                    currBlock.addModifiedVar(stmt.ident_, regArg)
-                }
+                visitStmt(Ass(stmt.ident_, EAdd(EVar(stmt.ident_), Plus(), ELitInt(1))))
             }
             is Ret -> {
                 val reg = visitExpr(stmt.expr_)
