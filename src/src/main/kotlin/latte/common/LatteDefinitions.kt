@@ -51,6 +51,25 @@ class ClassDef(val name: String, val parent: Optional<String>) {
         return Pair(j, methodsList)
     }
 
+    fun getMethod(methodName: String): Triple<String, String, String> {
+        for (t in methodsList) {
+            if (t.first == methodName) {
+                return t
+            }
+        }
+
+        throw RuntimeException("method $methodName not found in class $name")
+    }
+
+    fun getMethodDef(methodName: String): FuncDef {
+        val m = methods[methodName]
+        return if (m != null) {
+            m
+        } else {
+            parentClass!!.getMethodDef(methodName)
+        }
+    }
+
     fun setParent(parent: ClassDef) {
         this.parentClass = parent
     }

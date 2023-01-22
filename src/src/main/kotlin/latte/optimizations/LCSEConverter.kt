@@ -30,7 +30,7 @@ class LCSEConverter(private val ssa: SSA) {
         for (i in (0 until block.ops.size).reversed()) {
             val currOp = block.ops[i]
             // Don't remove function calls, because they can have side effects.
-            if (currOp is RegistryOp && currOp !is AppOp) {
+            if (currOp is RegistryOp && currOp !is AppOp && currOp !is MethodOp) {
                 if (toRemove.contains(currOp.result.number)) {
                     block.ops.removeAt(i)
                 }

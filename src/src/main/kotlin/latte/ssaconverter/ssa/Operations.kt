@@ -2,8 +2,10 @@ package latte.ssaconverter.ssa
 
 import latte.Absyn.*
 import latte.Absyn.AddOp
+import latte.common.FuncDef
 import latte.common.typeToString
 import latte.llvmconverter.classNameToLlvm
+import latte.llvmconverter.methodDefToLlvmType
 import latte.llvmconverter.typeToLlvm
 import latte.ssaconverter.argToType
 import kotlin.system.exitProcess
@@ -132,7 +134,7 @@ abstract class RegistryOp(val result: RegistryArg): Op() {
     abstract fun printOp(): String
 
     override fun toLlvm(): String {
-        return if (this is AppOp && this.type is latte.Absyn.Void) {
+        return if ((this is AppOp && this.type is Void) || (this is MethodOp && this.type is Void)) {
             opToLlvm()
         } else {
             "%reg${result.number} = ${opToLlvm()}"
@@ -169,7 +171,7 @@ class ClassCastOp(result: Int, val className: String, var arg: OpArgument): Regi
     }
 
     override fun opEquals(otherOp: Op): Boolean {
-        return otherOp is ClassCastOp && otherOp.arg.argEquals(arg)
+        return otherOp is ClassCastOp && otherOp.arg.argEquals(arg) && otherOp.className == className
     }
 
     override fun updateUsed(s: MutableSet<Int>) {
@@ -204,8 +206,8 @@ class GetClassVarOp(result: Int, val className: String, var classLoc: OpArgument
     }
 
     override fun opEquals(otherOp: Op): Boolean {
-        // Two getClassVar are equal if refer to the same object and the same variable
-        return otherOp is GetClassVarOp && otherOp.classLoc.argEquals(classLoc) && otherOp.varName == varName
+        // Two getClassVar are equal if refer to the same object and the same variable and same class
+        return otherOp is GetClassVarOp && otherOp.classLoc.argEquals(classLoc) && otherOp.varName == varName && otherOp.className == className
     }
 
     override fun updateUsed(s: MutableSet<Int>) {
@@ -223,6 +225,35 @@ class LoadClassVarOp(result: Int, val type: Type, var reg: Int): RegistryOp(Regi
 
     override fun opToLlvm(): String {
         val type = typeToLlvm(type)
+        return "load $type, $type* %reg$reg"
+    }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        val a = replaceMap[reg]
+        if (a != null && a is RegistryArg) {
+            reg = a.number
+        }
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        // TODO: In general, we can't use LCSE to optimize these, because other functions can change this state
+        //  and it's too complicated to check it
+        return false
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        s.add(reg)
+    }
+
+}
+
+class LoadMethodOp(result: Int, val className: String, val def: FuncDef, var reg: Int): RegistryOp(RegistryArg(result, Class(methodDefToLlvmType(def, className)))) {
+    override fun printOp(): String {
+        return "load_func $className.${methodDefToLlvmType(def, className)} $reg"
+    }
+
+    override fun opToLlvm(): String {
+        val type = methodDefToLlvmType(def, className)
         return "load $type, $type* %reg$reg"
     }
 
@@ -344,6 +375,42 @@ class AppOp(result: Int, val name: String, val type: Type, var args: List<OpArgu
     }
 
     override fun updateUsed(s: MutableSet<Int>) {
+        for (arg in args) {
+            if (arg is RegistryArg) {
+                s.add(arg.number)
+            }
+        }
+    }
+
+    override fun reduce(replaceMap: MutableMap<Int, OpArgument>) {
+        args = args.map {
+            if (it is RegistryOp) {
+                replaceMap[it.result.number] ?: it
+            } else {
+                it
+            }
+        }
+    }
+}
+
+class MethodOp(result: Int, val reg: Int, val type: Type, var args: List<OpArgument>): RegistryOp(RegistryArg(result, type)) {
+    override fun printOp(): String {
+        val argsStr = args.joinToString(separator = ", ") { it.print() }
+        return "call_method %$reg ($argsStr): ${typeToString(type)}"
+    }
+
+    override fun opToLlvm(): String {
+        val argsStr = args.joinToString(separator = ", ") { "${typeToLlvm(argToType(it))} ${it.toLlvm()}" }
+        return "call ${typeToLlvm(type)} %reg$reg($argsStr)"
+    }
+
+    override fun opEquals(otherOp: Op): Boolean {
+        // Method calls are never equal to each other because of in-out operations.
+        return false
+    }
+
+    override fun updateUsed(s: MutableSet<Int>) {
+        s.add(reg)
         for (arg in args) {
             if (arg is RegistryArg) {
                 s.add(arg.number)

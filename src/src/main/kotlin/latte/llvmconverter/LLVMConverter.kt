@@ -1,6 +1,7 @@
 package latte.llvmconverter
 
 import latte.Absyn.*
+import latte.common.FuncDef
 import latte.common.typeToString
 import latte.ssaconverter.getTypeDefaultValue
 import latte.ssaconverter.ssa.*
@@ -13,6 +14,15 @@ fun typeToLlvm(type: Type): String {
         is Void -> "void"
         is Class -> "%Class.${type.ident_}*"
         else -> throw RuntimeException("type not supported in typeToLlvm: ${typeToString(type)}")
+    }
+}
+
+fun methodDefToLlvmType(f: FuncDef, className: String): String {
+    val args = f.args.joinToString(separator = ", ") { typeToLlvm((it as Ar).type_) }
+    return if (args.isNotEmpty()) {
+        "${typeToLlvm(f.returnType)}(%Class.$className*, $args)*"
+    } else {
+        "${typeToLlvm(f.returnType)}(%Class.$className*)*"
     }
 }
 
@@ -54,14 +64,13 @@ class LLVMConverter(private val ssa: SSA) {
     private fun getVtableTypes(): Pair<String, String> {
         val x = ssa.classDefs.map { entry ->
             val p = entry.value.vtable.map {
-                println("${it.second}.${it.first}")
                 val f = ssa.defs["${it.second}.${it.first}"]!!
                 val type = funcToLlvmType(f)
                 Pair(type, "$type @${it.third}.${it.first}")
             }
 
-            val vtableType = p.joinToString(separator = ", ", prefix = "%Vtable.${entry.key} = type {") { it.first } + "}"
-            val vtableData = p.joinToString(separator=",\n", prefix="@Vtabledata.${entry.key} = global %Vtable.${entry.key} {\n") {it.second} + "\n}"
+            val vtableType = p.joinToString(separator = ", ", prefix = "%Class.Vtable.${entry.key} = type {") { it.first } + "}"
+            val vtableData = p.joinToString(separator=",\n", prefix="@Vtabledata.${entry.key} = global %Class.Vtable.${entry.key} {\n") {it.second} + "\n}"
 
             Pair(vtableType, vtableData)
         }
@@ -79,7 +88,7 @@ class LLVMConverter(private val ssa: SSA) {
 
     private fun classToStr(name: String, c: SSAClass): String {
         val types = c.varsToLlvm()
-        val vtableName = "%Vtable.$name*"
+        val vtableName = "%Class.Vtable.$name*"
         return if (types.isNotEmpty()) {
             "${classNameToLlvm(name)} = type { $vtableName, ${c.varsToLlvm()} }"
         } else {
@@ -159,7 +168,7 @@ class LLVMConverter(private val ssa: SSA) {
 
         // Add vtable
         strings.add("%r$i = getelementptr $typeName, $typeName* %0, i32 0, i32 0")
-        strings.add("store %Vtable.$name* @Vtabledata.$name, %Vtable.$name** %r$i")
+        strings.add("store %Class.Vtable.$name* @Vtabledata.$name, %Class.Vtable.$name** %r$i")
         i++
 
         for (p in c.variables) {

@@ -185,16 +185,28 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
     private fun visitMethod(className: String, def: FnDef): String {
         prepFun()
         val classType = Class(className)
+        val classDef = definitions.classes[className]!!
         // Steps:
         // 2. add env with args
         val reg = getNextRegistry()
         currTypes[reg] = classType
         currEnv.add(mutableMapOf("self" to RegistryArg(reg, classType)))
         visitArgs(def.listarg_)
-        // 1. add env with member variables
+
         currEnv.add(mutableMapOf())
         currBlock = SSABlock(getNextLabel(), emptyList(), this)
-        val objRegistry = 0
+        var objRegistry = 0
+
+        // 3. handle virtuals
+        // TODO: add bitcasting and change argument
+        val method = classDef.getMethod(def.ident_)
+        if (method.second != method.third) {
+            // If method is virtual, cast
+            objRegistry = getNextRegistry()
+            currBlock.addOp(ClassCastOp(objRegistry, method.third, RegistryArg(0, Class(method.second))))
+        }
+
+        // 1. add env with member variables
         val memberVariables = getMemberVariables(definitions, className)
         for (v in memberVariables) {
             val classReg = getNextRegistry()
@@ -212,9 +224,6 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         currEnv[currEnv.size - 2] = currEnv[currEnv.size - 1]
         currEnv[currEnv.size - 1] = swap
 
-        // 3. handle virtuals
-        // TODO: add bitcasting and change argument
-
         // 4. visit method body
         currEnv.add(mutableMapOf())
         val methodFirstBlock = currBlock
@@ -222,7 +231,13 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             visitStmt(stmt)
         }
 
-        ssa.addFun(def, Optional.of(Ar(Class(className), "self")), methodFirstBlock, "${className}.${def.ident_}")
+        val selfClass = if (method.second == method.third) {
+            Class(className)
+        } else {
+            Class(method.second)
+        }
+
+        ssa.addFun(def, Optional.of(Ar(selfClass, "self")), methodFirstBlock, "${className}.${def.ident_}")
 
         // TODO: return name of respective class, not self
         return className
@@ -765,13 +780,15 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             }
             is EArray -> TODO("extension: array")
             is EClassCall -> {
-                var obj = visitExpr(expr.expr_)
+                var obj = visitExpr(expr.expr_) as RegistryArg
                 val c = argToType(obj) as Class
                 val method = getMethod(c.ident_, expr.ident_)
                 val methodName = "${method.second}.${expr.ident_}"
                 val type = method.first.returnType
+                // If this class is not equal to the class the method comes from...
                 if (c.ident_ != method.second) {
                     // Calling an inherited function
+
                     val r = getNextRegistry()
                     currBlock.addOp(ClassCastOp(r, method.second, obj))
                     obj = RegistryArg(r, Class(method.second))
@@ -779,13 +796,35 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
 
                 val args = listOf(obj) + visitListExpr(expr.listexpr_)
 
+                val vtableAddrReg = getNextRegistry()
+
+                // Get vtable address
+                currBlock.addOp(GetClassVarOp(vtableAddrReg, method.second, obj, 0, Class("Vtable.${method.second}")))
+                // Get vtable
+                val vtableReg = getNextRegistry()
+                currBlock.addOp(LoadClassVarOp(vtableReg, Class("Vtable.${method.second}"), vtableAddrReg))
+                // Get method address from vtable
+                val methodAddrReg = getNextRegistry()
+                currBlock.addOp(
+                    GetClassVarOp(
+                        methodAddrReg,
+                        "Vtable.${method.second}",
+                        RegistryArg(vtableReg, Class("Vtable.${method.second}")),
+                        method.third,
+                        Class("Vtable.${method.second}"))
+                )
+                // Get method from method address
+                val methodReg = getNextRegistry()
+                currBlock.addOp(LoadMethodOp(methodReg, method.second, method.first, methodAddrReg))
+
+
                 if (type is Void) {
                     // If void, don't assign to a registry
-                    currBlock.addOp(AppOp(0, methodName, type, args))
+                    currBlock.addOp(MethodOp(0, methodReg, type, args))
                     return RegistryArg(0, type)
                 } else {
                     val reg = getNextRegistry()
-                    currBlock.addOp(AppOp(reg, methodName, type, args))
+                    currBlock.addOp(MethodOp(reg, methodReg, type, args))
                     currTypes[reg] = type
                     return RegistryArg(reg, type)
                 }
@@ -818,14 +857,17 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         }
     }
 
-    private fun getMethod(className: String, method: String): Pair<FuncDef, String> {
+    private fun getMethod(className: String, method: String): Triple<FuncDef, String, Int> {
         val c = definitions.classes[className]!!
-        val m = c.methods[method]
-        return if (m != null) {
-            Pair(c.methods[method]!!, className)
-        } else {
-            getMethod(c.parent.get(), method)
+        for (i in 0 until c.methodsList.size) {
+            val t = c.methodsList[i]
+            if (t.first == method) {
+                val m = c.getMethodDef(method)
+                return Triple(m, t.second, i)
+            }
         }
+
+        throw RuntimeException("not found method $method in class $className")
     }
 
     private fun getFieldOrder(className: String, fieldName: String): Int {
