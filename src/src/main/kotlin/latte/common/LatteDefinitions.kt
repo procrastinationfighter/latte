@@ -1,6 +1,7 @@
 package latte.common
 
 import latte.Absyn.*
+import latte.Absyn.Array
 import latte.latteParser.ListClassDefContext
 import latte.llvmconverter.typeToLlvm
 import java.util.*
@@ -72,6 +73,51 @@ class ClassDef(val name: String, val parent: Optional<String>) {
 
     fun setParent(parent: ClassDef) {
         this.parentClass = parent
+    }
+
+    fun isVirtualOk(method: String): Boolean {
+        var c = this
+        val thisM = methods[method]!!
+
+        while (c.parent.isPresent) {
+            c = c.parentClass!!
+            val m = c.methods[method]
+            if (m != null && !compareFunc(thisM, m)) {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private fun compareFunc(thisMethod: FuncDef, other: FuncDef): Boolean {
+        if (!compareType(thisMethod.returnType, other.returnType)) {
+            return false
+        }
+        if (thisMethod.args.size != other.args.size) {
+            return false
+        }
+
+        thisMethod.args.zip(other.args).forEach {
+            if (!compareType((it.first as Ar).type_, (it.second as Ar).type_)) {
+                return false
+            }
+        }
+
+        return true
+    }
+
+    private fun compareType(l: Type, r: Type): Boolean {
+        return when (l) {
+            is latte.Absyn.Int -> r is latte.Absyn.Int
+            is Bool -> r is Bool
+            is Str -> r is Str
+            is Array -> r is Array && compareType(l.type_, r.type_)
+            is Void -> r is Void
+            is Class -> r is Class && (l.ident_ == r.ident_)
+            is Null -> r is Null
+            else -> false
+        }
     }
 
     constructor(name: String, parent: Optional<String>, defs: ListClassDefContext?) : this(name, parent) {

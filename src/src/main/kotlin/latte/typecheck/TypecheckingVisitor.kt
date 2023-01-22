@@ -276,6 +276,15 @@ class TypecheckingVisitor(private val definitions: LatteDefinitions) : lattePars
             Void()
         } else { // topdef
             visitTopDef(ctx.topDef())
+
+            // check if virtual headers are ok
+            if (ctx.topDef().result is FnDef) {
+                if (!definitions.classes[currClass]!!.isVirtualOk(ctx.topDef().IDENT(0).text)) {
+                    val token = ctx.topDef().IDENT(0).symbol
+                    throw LatteException("virtual functions must have the same signature", token.line, token.charPositionInLine)
+                }
+            }
+
             Void()
         }
     }
