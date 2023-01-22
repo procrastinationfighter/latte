@@ -53,6 +53,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
     private var currTypes = mutableMapOf<Int, Type>()
     private var currBlock = SSABlock("", emptyList(), this)
     private var currClass = Optional.empty<String>()
+    private var currReturn = Optional.empty<Type>()
 
     private fun copyCurrEnv(): List<Map<String, OpArgument>> {
         // TODO: Check if the list is deep copied
@@ -127,6 +128,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         currEnv.clear()
         currEnv.add(mutableMapOf())
         currTypes.clear()
+        currReturn = Optional.empty()
     }
 
     fun convert(): SSA {
@@ -226,6 +228,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
 
         // 4. visit method body
         currEnv.add(mutableMapOf())
+        currReturn = Optional.of(def.type_)
         val methodFirstBlock = currBlock
         for (stmt in (def.block_ as Blk).liststmt_) {
             visitStmt(stmt)
@@ -263,6 +266,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
     private fun visitFnDef(fnDef: FnDef) {
         prepFun()
         visitArgs(fnDef.listarg_)
+        currReturn = Optional.of(fnDef.type_)
         val block = visitBlock(fnDef.block_ as Blk)
         ssa.addFun(fnDef, Optional.empty(), block, fnDef.ident_)
     }
@@ -456,14 +460,27 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 visitStmt(Ass(stmt.ident_, EAdd(EVar(stmt.ident_), Plus(), ELitInt(1))))
             }
             is Ret -> {
-                val reg = visitExpr(stmt.expr_)
-                val type = when (reg) {
+                var reg = visitExpr(stmt.expr_)
+                var type = when (reg) {
                     is IntArg -> Int()
                     is StringArg -> Str()
                     is BoolArg -> Bool()
                     is RegistryArg -> reg.type
                     else -> throw RuntimeException("unknown type in return")
                 }
+
+                // If returning a class, cast first.
+                if (type is Class) {
+                    val ret = currReturn.get() as Class
+                    if (ret.ident_ != type.ident_) {
+                        val newReg = getNextRegistry()
+
+                        currBlock.addOp(ClassCastOp(newReg, ret.ident_, reg))
+                        type = ret
+                        reg = RegistryArg(newReg, type)
+                    }
+                }
+
                 currBlock.addOp(ReturnOp(type, reg))
             }
             is SExp -> visitExpr(stmt.expr_)
@@ -669,12 +686,20 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
             is EAnd -> visitOrAnd(expr.expr_1, expr.expr_2, false)
             is ERel -> {
                 val left = visitExpr(expr.expr_1)
-                val right = visitExpr(expr.expr_2)
+                var right = visitExpr(expr.expr_2)
                 val reg = getNextRegistry()
                 val t = argToType(left)
                 if (t is Str) {
                     currBlock.addOp(StringRelationOp(reg, left, right, expr.relop_))
                 } else {
+                    if (t is Class) {
+                        if (t.ident_ != (argToType(right) as Class).ident_) {
+                            // If classes not equal, just cast one to another and compare the pointers
+                            val newReg = getNextRegistry()
+                            currBlock.addOp(ClassCastOp(newReg, t.ident_, right))
+                            right = RegistryArg(newReg, Class(t.ident_))
+                        }
+                    }
                     currBlock.addOp(RelationOp(reg, left, right, expr.relop_))
                 }
                 currTypes[reg] = Bool()
@@ -739,8 +764,9 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                 return RegistryArg(reg, Int())
             }
             is EApp -> {
-                val args = visitListExpr(expr.listexpr_)
-                val type = definitions.functions[expr.ident_]!!.returnType
+                val funDef = definitions.functions[expr.ident_]!!
+                val args = visitListExpr(expr.listexpr_, funDef.args)
+                val type = funDef.returnType
                 if (type is Void) {
                     // If void, don't assign to a registry
                     currBlock.addOp(AppOp(0, expr.ident_, type, args))
@@ -794,7 +820,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
                     obj = RegistryArg(r, Class(method.second))
                 }
 
-                val args = listOf(obj) + visitListExpr(expr.listexpr_)
+                val args = listOf(obj) + visitListExpr(expr.listexpr_, method.first.args)
 
                 val vtableAddrReg = getNextRegistry()
 
@@ -939,7 +965,24 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         return RegistryArg(phiReg, Bool())
     }
 
-    private fun visitListExpr(listexpr_: ListExpr): List<OpArgument> {
-        return listexpr_.map { expr -> visitExpr(expr) }
+    private fun visitListExpr(listexpr_: ListExpr, args: ListArg): List<OpArgument> {
+        if (listexpr_.size != args.size) {
+            throw RuntimeException("list of expressions size: ${listexpr_.size}, list of args size: ${args.size}")
+        }
+
+        return listexpr_.zip(args).map { pair ->
+            var e = visitExpr(pair.first)
+            val eType = argToType(e)
+            if (eType is Class) {
+                val argClassName = ((pair.second as Ar).type_ as Class).ident_
+                if (eType.ident_ != argClassName) {
+                    val newReg = getNextRegistry()
+                    currBlock.addOp(ClassCastOp(newReg, argClassName, e))
+                    e = RegistryArg(newReg, Class(argClassName))
+                }
+            }
+
+            e
+        }
     }
 }
