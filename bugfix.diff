@@ -1,0 +1,167 @@
+diff --git a/README.md b/README.md
+index 5239999..82cb2e8 100644
+--- a/README.md
++++ b/README.md
+@@ -80,3 +80,29 @@ By default, the compiler runs using all optimizations. To turn them off, build t
+ - int type corresponds to `i32` type in LLVM
+ - memory allocated for string input and concatenation does not get freed
+ - number literals can be in range from `-2147483647` to `2147483647`
++
++
++## Update 23.01.2023
++
++### Bugfixes
++
++The following bugs have been removed:
++
++#### Optimization of `if(true)`, `if(false)`, `while(true)` and `while(false)`
++
++A missing return statement caused incorrect code generation in these cases - the block that should be generated,
++was generated, but after that the whole statement was generated anyway.
++
++#### Nested SSA blocks
++
++SSA code was wrongly generated for some cases where the SSA blocks were "nested", e.g. when a lazy boolean expression
++was used in a loop's condition or when there were nested if statements. For example, such expression:
++```
++if (a) {
++  if (b) {
++    printInt(2);
++  }
++}
++```
++
++generated a block structure, where after the inner `if` block, there was a block that wasn't jumping anywhere.
+diff --git a/src/src/main/kotlin/latte/Main.kt b/src/src/main/kotlin/latte/Main.kt
+index 015ab08..c346a0e 100644
+--- a/src/src/main/kotlin/latte/Main.kt
++++ b/src/src/main/kotlin/latte/Main.kt
+@@ -60,6 +60,8 @@ fun main(args: Array<String>) {
+ 
+         val ssaConverter = SSAConverter(tree.result as Prog, definitions)
+         val ssa = ssaConverter.convert()
++        // use ssa.print() for debug purposes
++        // ssa.print()
+ 
+         // Optimize only if flag is specified.
+         if (args.size < 3) {
+diff --git a/src/src/main/kotlin/latte/ssaconverter/SSAConverter.kt b/src/src/main/kotlin/latte/ssaconverter/SSAConverter.kt
+index aac2cf5..0628e7a 100644
+--- a/src/src/main/kotlin/latte/ssaconverter/SSAConverter.kt
++++ b/src/src/main/kotlin/latte/ssaconverter/SSAConverter.kt
+@@ -173,6 +173,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
+                 // Handle if(true) and if(false)
+                 if (stmt.expr_ is ELitTrue) {
+                     visitStmt(stmt.stmt_)
++                    return
+                 } else if (stmt.expr_ is ELitFalse) {
+                     return
+                 }
+@@ -186,17 +187,18 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
+                 val ifBlock = SSABlock(ifLabel, emptyList(), this)
+                 currBlock = ifBlock
+                 visitStmt(stmt.stmt_)
+-                ifBlock.addOp(JumpOp(continueLabel))
+-                ifBlock.endEnv = copyCurrEnv()
++                val ifEndingBlock = currBlock
++                currBlock.addOp(JumpOp(continueLabel))
++                currBlock.endEnv = copyCurrEnv()
+ 
+-                val phi = getPhi(block, ifBlock)
++                val phi = getPhi(block, ifEndingBlock)
+                 val continueBlock = SSABlock(continueLabel, phi, this)
+                 block.addOp(IfOp(cond, ifLabel, continueLabel))
+ 
+                 // Fix block graph
+                 block.addNext(ifBlock)
+                 block.addNext(continueBlock)
+-                ifBlock.addNext(continueBlock)
++                ifEndingBlock.addNext(continueBlock)
+ 
+                 currBlock = continueBlock
+             }
+@@ -204,8 +206,10 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
+                 // Handle if(true) and if (false)
+                 if (stmt.expr_ is ELitTrue) {
+                     visitStmt(stmt.stmt_1)
++                    return
+                 } else if (stmt.expr_ is ELitFalse) {
+                     visitStmt(stmt.stmt_2)
++                    return
+                 }
+ 
+                 val cond = visitExpr(stmt.expr_)
+@@ -218,25 +222,27 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
+                 val ifBlock = SSABlock(ifLabel, emptyList(), this)
+                 currBlock = ifBlock
+                 visitStmt(stmt.stmt_1)
+-                ifBlock.addOp(JumpOp(continueLabel))
+-                ifBlock.endEnv = copyCurrEnv()
++                currBlock.endEnv = copyCurrEnv()
++                currBlock.addOp(JumpOp(continueLabel))
++                val ifEndingBlock = currBlock
+                 restoreEnv(block)
+ 
+                 val elseBlock = SSABlock(elseLabel, emptyList(), this)
+                 currBlock = elseBlock
+                 visitStmt(stmt.stmt_2)
+-                elseBlock.addOp(JumpOp(continueLabel))
+-                elseBlock.endEnv = copyCurrEnv()
++                currBlock.endEnv = copyCurrEnv()
++                currBlock.addOp(JumpOp(continueLabel))
++                val elseEndingBlock = currBlock
+ 
+-                val phi = getPhi(ifBlock, elseBlock)
++                val phi = getPhi(ifEndingBlock, elseEndingBlock)
+                 val continueBlock = SSABlock(continueLabel, phi, this)
+                 block.addOp(IfOp(cond, ifLabel, elseLabel))
+ 
+                 // Fix block graph
+                 block.addNext(ifBlock)
+                 block.addNext(elseBlock)
+-                ifBlock.addNext(continueBlock)
+-                elseBlock.addNext(continueBlock)
++                ifEndingBlock.addNext(continueBlock)
++                elseEndingBlock.addNext(continueBlock)
+ 
+                 currBlock = continueBlock
+             }
+@@ -323,8 +329,8 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
+         val condBlock = SSABlock(condLabel, condPhi, this)
+         currBlock = condBlock
+         val reg = visitExpr(stmt.expr_)
+-        condBlock.addOp(IfOp(reg, bodyLabel, continueLabel))
+-        condBlock.endEnv = copyCurrEnv()
++        currBlock.addOp(IfOp(reg, bodyLabel, continueLabel))
++        currBlock.endEnv = copyCurrEnv()
+         block.addOp(JumpOp(condLabel))
+ 
+         // Body block
+@@ -345,8 +351,9 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
+         val condBlock2 = SSABlock(condLabel, condPhi2, this)
+         currBlock = condBlock2
+         val reg2 = visitExpr(stmt.expr_)
+-        condBlock2.addOp(IfOp(reg2, bodyLabel, continueLabel))
+-        condBlock2.endEnv = copyCurrEnv()
++        currBlock.addOp(IfOp(reg2, bodyLabel, continueLabel))
++        currBlock.endEnv = copyCurrEnv()
++        val finishCondBlock = currBlock
+         block.addNext(condBlock2)
+         block.addOp(JumpOp(condLabel))
+         block.addNext(condBlock2)
+@@ -354,12 +361,12 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
+ 
+         // Continue block
+         nextRegistry = tempReg2
+-        restoreEnv(condBlock2)
++        restoreEnv(finishCondBlock)
+         val continueBlock = SSABlock(continueLabel, emptyList(), this)
+         currBlock = continueBlock
+ 
+-        condBlock2.addNext(continueBlock)
+-        condBlock2.addNext(bodyBlock)
++        finishCondBlock.addNext(continueBlock)
++        finishCondBlock.addNext(bodyBlock)
+     }
+ 
+     private fun getPhi(first: SSABlock, second: SSABlock): List<Phi> {

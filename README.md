@@ -32,13 +32,9 @@ The compiler currently:
 - performs LCSE optimizations on generated SSA structure
 - removes dead code (by removing unused operations different from function calls)
 
-There will be more optimizations added in the next iteration.
-
 ## Implemented language extensions
 
-The frontend accepts all suggested extensions: arrays, structs and objects.
-
-The backend does not support any language extension yet.
+The backend supports classes with virtual functions.
 
 ## Fixes
 
@@ -86,6 +82,8 @@ By default, the compiler runs using all optimizations. To turn them off, build t
 
 ### Bugfixes
 
+The diff in code that shows what has been fixed can be seen in `bugfix.diff`.
+
 The following bugs have been removed:
 
 #### Optimization of `if(true)`, `if(false)`, `while(true)` and `while(false)`
@@ -106,3 +104,11 @@ if (a) {
 ```
 
 generated a block structure, where after the inner `if` block, there was a block that wasn't jumping anywhere.
+
+### New features
+
+New features added:
+
+- structs
+- objects
+- virtual functions
