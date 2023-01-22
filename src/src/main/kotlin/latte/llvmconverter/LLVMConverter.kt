@@ -78,7 +78,13 @@ class LLVMConverter(private val ssa: SSA) {
     }
 
     private fun classToStr(name: String, c: SSAClass): String {
-        return "${classNameToLlvm(name)} = type { ${c.varsToLlvm()} }"
+        val types = c.varsToLlvm()
+        val vtableName = "%Vtable.$name*"
+        return if (types.isNotEmpty()) {
+            "${classNameToLlvm(name)} = type { $vtableName, ${c.varsToLlvm()} }"
+        } else {
+            "${classNameToLlvm(name)} = type { $vtableName }"
+        }
     }
 
     private fun funToStr(f: SSAFun): String {
@@ -150,6 +156,11 @@ class LLVMConverter(private val ssa: SSA) {
             strings.add("call void @InitClass.$parentName(${classNameToLlvm(parentName)}* %r$i)")
             i++
         }
+
+        // Add vtable
+        strings.add("%r$i = getelementptr $typeName, $typeName* %0, i32 0, i32 0")
+        strings.add("store %Vtable.$name* @Vtabledata.$name, %Vtable.$name** %r$i")
+        i++
 
         for (p in c.variables) {
             val t = typeToLlvm(p.value)

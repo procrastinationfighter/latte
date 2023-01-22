@@ -17,7 +17,7 @@ class ClassDef(val name: String, val parent: Optional<String>) {
     val variables: HashMap<String, Type> = HashMap()
     val methods: HashMap<String, FuncDef> = HashMap()
     val fieldsOrder: HashMap<String, Int> = HashMap()
-    var j = 0
+    var j = 1
     var methodsList: List<Triple<String, String, String>> = listOf()
     var typesStr = ""
     var parentClass: ClassDef? = null
@@ -26,7 +26,7 @@ class ClassDef(val name: String, val parent: Optional<String>) {
         if (fieldsOrder.isNotEmpty()) {
             return Pair(j, methodsList)
         }
-        val par = parentClass?.calculateOrder() ?: Pair(0, listOf())
+        val par = parentClass?.calculateOrder() ?: Pair(1, listOf())
         j = par.first
         val mets: MutableList<Triple<String, String, String>> = par.second.toMutableList()//mutableListOf(par.second)
         val list = mutableListOf<Type>()
