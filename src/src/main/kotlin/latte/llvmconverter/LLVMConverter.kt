@@ -44,9 +44,37 @@ class LLVMConverter(private val ssa: SSA) {
         val strings = ssa.strings.map { "@${it.value} = internal constant ${strToLlvm(it.key)}" }.joinToString(separator="\n")
         val classes = ssa.classDefs.map { classToStr(it.key, it.value) }.joinToString(separator="\n")
         val classesInits = ssa.classDefs.map { getClassInit(it.key, it.value) }.joinToString(separator="\n")
+        val classesVtables = getVtableTypes()
         val functions = ssa.defs.map { funToStr(it.value) }
         val external = getExternalFuns()
-        return functions.joinToString(separator = "\n", prefix = "$external\n\n$strings\n\n$classes\n\n$classesInits\n\n")
+        val prefix = "$external\n\n$strings\n\n${classesVtables.first}\n\n$classes\n\n"
+        return functions.joinToString(separator = "\n", prefix=prefix) + "\n\n${classesVtables.second}\n\n$classesInits"
+    }
+
+    private fun getVtableTypes(): Pair<String, String> {
+        val x = ssa.classDefs.map { entry ->
+            val p = entry.value.vtable.map {
+                println("${it.second}.${it.first}")
+                val f = ssa.defs["${it.second}.${it.first}"]!!
+                val type = funcToLlvmType(f)
+                Pair(type, "$type @${it.third}.${it.first}")
+            }
+
+            val vtableType = p.joinToString(separator = ", ", prefix = "%Vtable.${entry.key} = type {") { it.first } + "}"
+            val vtableData = p.joinToString(separator=",\n", prefix="@Vtabledata.${entry.key} = global %Vtable.${entry.key} {\n") {it.second} + "\n}"
+
+            Pair(vtableType, vtableData)
+        }
+
+        val types = x.joinToString(separator="\n") {it.first}
+        val data = x.joinToString(separator="\n") {it.second}
+
+        return Pair(types, data)
+    }
+
+    private fun funcToLlvmType(f: SSAFun): String {
+        val args = f.args.joinToString(separator = ", ") { typeToLlvm((it as Ar).type_) }
+        return "${typeToLlvm(f.type)}($args)*"
     }
 
     private fun classToStr(name: String, c: SSAClass): String {
@@ -130,7 +158,7 @@ class LLVMConverter(private val ssa: SSA) {
             i++
         }
 
-        return strings.joinToString(separator="\n  ") + "  ret void\n}\n"
+        return strings.joinToString(separator="\n  ") + "\n  ret void\n}\n"
     }
 
 }

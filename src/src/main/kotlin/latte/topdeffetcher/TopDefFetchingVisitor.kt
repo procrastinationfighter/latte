@@ -83,12 +83,12 @@ class TopDefFetchingVisitor : latteParserBaseVisitor<LatteDefinitions>() {
                 throw LatteException("redefinition of function ${topDef.ident_}", ctx.start!!.line, ctx.start!!.charPositionInLine)
             }
         } else if (topDef is TopClassDef) {
-            val prev = this.definitions.classes.put(topDef.ident_, ClassDef(Optional.empty(), ctx.listClassDef()))
+            val prev = this.definitions.classes.put(topDef.ident_, ClassDef(topDef.ident_, Optional.empty(), ctx.listClassDef()))
             if (prev != null) {
                 throw LatteException("redefinition of class ${topDef.ident_}", ctx.start!!.line, ctx.start!!.charPositionInLine)
             }
         } else if (topDef is SubClassDef) {
-            val prev = this.definitions.classes.put(topDef.ident_1, ClassDef(Optional.of(topDef.ident_2), ctx.listClassDef()))
+            val prev = this.definitions.classes.put(topDef.ident_1, ClassDef(topDef.ident_1, Optional.of(topDef.ident_2), ctx.listClassDef()))
             if (prev != null) {
                 throw LatteException("redefinition of class ${topDef.ident_1}", ctx.start!!.line, ctx.start!!.charPositionInLine)
             }

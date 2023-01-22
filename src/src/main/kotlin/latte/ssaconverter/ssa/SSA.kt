@@ -44,7 +44,7 @@ class SSA {
         } else {
             fnDef.listarg_
         }
-        defs[fnDef.ident_] = SSAFun(ident, fnDef.type_, args, block)
+        defs[ident] = SSAFun(ident, fnDef.type_, args, block)
     }
 
     fun addClass(name: String, def: SSAClass) {

@@ -234,7 +234,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         currClass = Optional.empty()
         val d = definitions.classes[def.ident_1]!!
         val parent = ssa.classDefs[def.ident_2] ?: throw RuntimeException("class ${def.ident_2} not found as parent class of ${def.ident_1}")
-        ssa.addClass(def.ident_1, SSAClass(def.ident_1, memberVariables, Optional.of(parent), d.typesStr, d.fieldsOrder))
+        ssa.addClass(def.ident_1, SSAClass(def.ident_1, memberVariables, Optional.of(parent), d.typesStr, d.fieldsOrder, d.methodsList))
     }
 
     private fun visitTopClass(def: TopClassDef) {
@@ -242,7 +242,7 @@ class SSAConverter(var program: Prog, private val definitions: LatteDefinitions)
         val memberVariables = visitListClassDef(def.ident_, def.listclassdef_)
         currClass = Optional.empty()
         val d = definitions.classes[def.ident_]!!
-        ssa.addClass(def.ident_, SSAClass(def.ident_, memberVariables, Optional.empty(), d.typesStr, d.fieldsOrder))
+        ssa.addClass(def.ident_, SSAClass(def.ident_, memberVariables, Optional.empty(), d.typesStr, d.fieldsOrder, d.methodsList))
     }
 
     private fun visitFnDef(fnDef: FnDef) {

@@ -13,34 +13,49 @@ class LatteDefinitions {
 
 class FuncDef(val returnType: Type, val args: ListArg)
 
-class ClassDef(val parent: Optional<String>) {
+class ClassDef(val name: String, val parent: Optional<String>) {
     val variables: HashMap<String, Type> = HashMap()
     val methods: HashMap<String, FuncDef> = HashMap()
     val fieldsOrder: HashMap<String, Int> = HashMap()
     var j = 0
+    var methodsList: List<Triple<String, String, String>> = listOf()
     var typesStr = ""
     var parentClass: ClassDef? = null
 
-    fun calculateOrder(): Int {
+    fun calculateOrder(): Pair<Int, List<Triple<String, String, String>>> {
         if (fieldsOrder.isNotEmpty()) {
-            return j
+            return Pair(j, methodsList)
         }
-        j = parentClass?.calculateOrder() ?: 0
+        val par = parentClass?.calculateOrder() ?: Pair(0, listOf())
+        j = par.first
+        val mets: MutableList<Triple<String, String, String>> = par.second.toMutableList()//mutableListOf(par.second)
         val list = mutableListOf<Type>()
         for (p in variables) {
             fieldsOrder[p.key] = j
             list.add(p.value)
             j++
         }
+
+        outer@ for (f in methods) {
+            for (i in 0 until mets.size) {
+                val a = mets[i]
+                if (a.first == f.key) {
+                    mets[i] = Triple(a.first, a.second, name)
+                    continue@outer
+                }
+            }
+            mets.add(Triple(f.key, name, name))
+        }
         typesStr = list.joinToString(separator = ",") { typeToLlvm(it) }
-        return j
+        methodsList = mets.toList()
+        return Pair(j, methodsList)
     }
 
     fun setParent(parent: ClassDef) {
         this.parentClass = parent
     }
 
-    constructor(parent: Optional<String>, defs: ListClassDefContext?) : this(parent) {
+    constructor(name: String, parent: Optional<String>, defs: ListClassDefContext?) : this(name, parent) {
         var classDefs = defs
         while (classDefs?.classDef() != null) {
             val classDef = classDefs.classDef()
