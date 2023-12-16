@@ -2,11 +2,11 @@
 
 As for now, the compiler does the following steps:
 
-1.frontend (parsing + semantic correctness checks)
-2.converting into SSA (with Phi variables)
-3.optimizing SSA structure (LCSE + removing dead code)
-4.generating LLVM code
-5.assembling and linking generated LLVM code into a single `.bc` file
+1. frontend (parsing + semantic correctness checks)
+2. converting into SSA (with Phi variables)
+3. optimizing SSA structure (LCSE + removing dead code)
+4. generating LLVM code
+5. assembling and linking generated LLVM code into a single `.bc` file
 
 ## Used tools and libraries
 
